@@ -1128,6 +1128,7 @@ function renderMidiaList(flowKey) {
           <br>
           <select onchange="midiaData['${flowKey}'][${i}].trigger=this.value">
             <option value="first_contact" ${item.trigger==='first_contact'?'selected':''}>Enviar no primeiro contato</option>
+            <option value="second_message" ${item.trigger==='second_message'?'selected':''}>Enviar na segunda mensagem</option>
             <option value="on_interest" ${item.trigger==='on_interest'?'selected':''}>Enviar quando demonstrar interesse</option>
           </select>
         </div>

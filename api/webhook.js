@@ -173,6 +173,12 @@ export default async function handler(req, res) {
 
     const flow = (await r.get(`fluxo:${phone}`)) || "organico";
 
+    // ── Mídia: segunda mensagem ──
+    const isSecondMessage = history.length === 1; // 1 msg de histórico = cliente está na 2ª
+    if (isSecondMessage) {
+      await r.set(`sendmedia:second:${phone}`, "1", "EX", 300);
+    }
+
     // ── Etiqueta "respondeu" a partir da segunda mensagem ──
     if (!isFirstMessage && flow === "protese") {
       const jaRespondeu = await r.get(`label:respondeu:${phone}`);
@@ -259,6 +265,17 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
       await r.del(`sendmedia:first:${phone}`);
       const mediaItems = await getFlowMedia(r, flow);
       for (const item of mediaItems.filter(m => m.trigger === "first_contact")) {
+        await delay(1500);
+        await sendMedia(phone, item);
+      }
+    }
+
+    // ── Enviar mídias second_message após segunda resposta ──
+    const shouldSendSecond = await r.get(`sendmedia:second:${phone}`);
+    if (shouldSendSecond) {
+      await r.del(`sendmedia:second:${phone}`);
+      const mediaItems = await getFlowMedia(r, flow);
+      for (const item of mediaItems.filter(m => m.trigger === "second_message")) {
         await delay(1500);
         await sendMedia(phone, item);
       }
