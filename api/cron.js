@@ -11,42 +11,16 @@ function getRedis() {
 
 const DAY = 24 * 60 * 60 * 1000;
 
-// Quantos dias esperar por estágio de follow-up
-const STAGES = {
-  protese:  [1, 3, 7],
-  clube:    [1, 3, 7],
-  organico: [3],
+const DEFAULT_CONFIG = {
+  protese:  { active: true, days: [1, 3, 7], instruction: "Objetivo: retomar a conversa de forma natural, com base no que foi dito, e conduzir para o agendamento de uma avaliação presencial gratuita. Sem emojis. Direto. Máximo 2 frases." },
+  clube:    { active: true, days: [1, 3, 7], instruction: "Objetivo: retomar a conversa com base no contexto e fechar a adesão ao plano do Clube VIP. Sem emojis. Direto. Máximo 2 frases." },
+  organico: { active: true, days: [3],       instruction: "Objetivo: retomar a conversa de forma simples e verificar se o cliente ainda precisa de algo. Sem emojis. Direto. Máximo 2 frases." },
 };
 
-const FOLLOWUP_PROMPT = {
-  protese: `Você é o assistente da Barbearia do Regis. O cliente demonstrou interesse em prótese capilar mas parou de responder.
-Leia o histórico abaixo e escreva UMA mensagem de retomada de conversa.
-Regras:
-- Sem emojis
-- Sem frases de desculpa ou "não quero incomodar"
-- Direto, confiante, como quem tem algo de valor a oferecer
-- Retome pelo ponto exato onde a conversa parou (dúvida não respondida, próximo passo não dado)
-- O objetivo final é marcar a avaliação presencial gratuita
-- Máximo 2 frases`,
-
-  clube: `Você é o assistente da Barbearia do Regis. O cliente demonstrou interesse no Clube VIP mas parou de responder.
-Leia o histórico abaixo e escreva UMA mensagem de retomada de conversa.
-Regras:
-- Sem emojis
-- Sem frases de desculpa ou "não quero incomodar"
-- Direto, confiante, como quem tem algo de valor a oferecer
-- Retome pelo ponto exato onde a conversa parou
-- O objetivo final é fechar a adesão ao plano
-- Máximo 2 frases`,
-
-  organico: `Você é o assistente da Barbearia do Regis. O cliente entrou em contato mas parou de responder.
-Leia o histórico abaixo e escreva UMA mensagem de retomada de conversa.
-Regras:
-- Sem emojis
-- Direto e objetivo
-- Retome pelo ponto exato onde a conversa parou
-- Máximo 2 frases`,
-};
+async function getConfig(r) {
+  const raw = await r.get("config:followup");
+  return raw ? JSON.parse(raw) : DEFAULT_CONFIG;
+}
 
 async function sendWhatsApp(phone, text) {
   await fetch(
@@ -62,8 +36,8 @@ async function sendWhatsApp(phone, text) {
   );
 }
 
-async function generateFollowUp(flow, history) {
-  const systemPrompt = FOLLOWUP_PROMPT[flow] || FOLLOWUP_PROMPT.organico;
+async function generateFollowUp(flow, history, instruction) {
+  const systemPrompt = `Você é o assistente da Barbearia do Regis. O cliente parou de responder.\nLeia o histórico e escreva UMA mensagem de retomada.\n${instruction}`;
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 200,
@@ -87,10 +61,14 @@ export default async function handler(req, res) {
   const r = getRedis();
   const now = Date.now();
   const results = { checked: 0, sent: 0, skipped: 0 };
+  const config = await getConfig(r);
 
   for (const flow of ["protese", "clube", "organico"]) {
+    const flowConfig = config[flow] || DEFAULT_CONFIG[flow];
+    if (!flowConfig.active) continue;
+
     const phones = await r.smembers(`phones:${flow}`);
-    const stageLimits = STAGES[flow] || [3];
+    const stageLimits = flowConfig.days || [3];
 
     for (const phone of phones) {
       results.checked++;
@@ -115,7 +93,7 @@ export default async function handler(req, res) {
           // Sem histórico, sem contexto → pular
           if (history.length === 0) continue;
 
-          const message = await generateFollowUp(flow, history);
+          const message = await generateFollowUp(flow, history, flowConfig.instruction);
           await sendWhatsApp(phone, message);
           await r.set(`followup:${phone}`, stage + 1, "EX", 60 * 60 * 24 * 30);
           results.sent++;
