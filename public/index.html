@@ -3,105 +3,200 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Painel — Agente WhatsApp</title>
+  <title>Agente WhatsApp — Barbearia do Regis</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0d0d; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-    /* LOGIN */
+    /* ── LOGIN ── */
     #login-screen {
-      display: flex; align-items: center; justify-content: center; flex: 1;
+      display: flex; align-items: center; justify-content: center; flex: 1; background: #0d0d0d;
     }
     .login-box {
-      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px;
-      padding: 40px; width: 360px; text-align: center;
+      background: #161616; border: 1px solid #2a2a2a; border-radius: 16px;
+      padding: 48px 40px; width: 380px; text-align: center;
     }
-    .login-box h1 { font-size: 20px; margin-bottom: 8px; }
-    .login-box p { color: #888; font-size: 14px; margin-bottom: 24px; }
+    .login-logo { font-size: 40px; margin-bottom: 16px; }
+    .login-box h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; color: #fff; }
+    .login-box p { color: #666; font-size: 14px; margin-bottom: 32px; }
     .login-box input {
-      width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333;
-      background: #111; color: #e0e0e0; font-size: 15px; margin-bottom: 12px;
+      width: 100%; padding: 14px 16px; border-radius: 10px; border: 1px solid #2a2a2a;
+      background: #0d0d0d; color: #e0e0e0; font-size: 15px; margin-bottom: 12px;
+      outline: none; transition: border 0.2s;
     }
+    .login-box input:focus { border-color: #25d366; }
     .login-box button {
-      width: 100%; padding: 12px; border-radius: 8px; border: none;
-      background: #25d366; color: #000; font-weight: 600; font-size: 15px; cursor: pointer;
+      width: 100%; padding: 14px; border-radius: 10px; border: none;
+      background: #25d366; color: #000; font-weight: 700; font-size: 15px; cursor: pointer;
+      transition: background 0.2s;
     }
-    .login-box button:hover { background: #20c05c; }
-    .login-error { color: #ff5555; font-size: 13px; margin-top: 8px; display: none; }
+    .login-box button:hover { background: #1db954; }
+    .login-error { color: #ff5555; font-size: 13px; margin-top: 10px; display: none; }
 
-    /* APP */
-    #app { display: none; flex: 1; overflow: hidden; }
-    header {
-      background: #1a1a1a; border-bottom: 1px solid #2a2a2a;
-      padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 16px;
-    }
-    header h1 { font-size: 16px; font-weight: 600; flex: 1; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #25d366; }
-    .status-label { font-size: 13px; color: #888; }
+    /* ── APP ── */
+    #app { display: none; flex: 1; overflow: hidden; flex-direction: row; }
 
-    .layout { display: flex; flex: 1; overflow: hidden; }
-
-    /* SIDEBAR */
+    /* ── SIDEBAR ── */
     .sidebar {
-      width: 280px; border-right: 1px solid #2a2a2a; display: flex; flex-direction: column; overflow: hidden;
+      width: 220px; background: #111; border-right: 1px solid #1e1e1e;
+      display: flex; flex-direction: column; flex-shrink: 0;
     }
-    .sidebar-tabs { display: flex; border-bottom: 1px solid #2a2a2a; }
-    .tab-btn {
-      flex: 1; padding: 12px; background: none; border: none; color: #888;
-      font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent;
+    .sidebar-header {
+      padding: 20px 16px 16px; border-bottom: 1px solid #1e1e1e;
     }
-    .tab-btn.active { color: #25d366; border-bottom-color: #25d366; }
-    .sidebar-content { flex: 1; overflow-y: auto; }
+    .sidebar-brand { display: flex; align-items: center; gap: 10px; }
+    .brand-icon { width: 34px; height: 34px; background: #25d366; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .brand-text { font-size: 13px; font-weight: 600; color: #fff; line-height: 1.3; }
+    .brand-sub { font-size: 11px; color: #555; font-weight: 400; }
 
-    /* CONVERSAS */
+    .conn-badge {
+      margin: 12px 16px 0; padding: 6px 10px; border-radius: 6px; font-size: 12px;
+      display: flex; align-items: center; gap: 6px; background: #0a1f0f; color: #25d366; border: 1px solid #1a3a20;
+    }
+    .conn-badge.disconnected { background: #1f0a0a; color: #ff5555; border-color: #3a1a1a; }
+    .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+    .nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      border-radius: 8px; cursor: pointer; font-size: 14px; color: #888;
+      transition: all 0.15s; user-select: none; border: none; background: none; width: 100%; text-align: left;
+    }
+    .nav-item:hover { background: #1a1a1a; color: #ccc; }
+    .nav-item.active { background: #0a2010; color: #25d366; font-weight: 600; }
+    .nav-icon { font-size: 17px; width: 20px; text-align: center; flex-shrink: 0; }
+    .nav-label { flex: 1; }
+    .nav-badge { background: #25d366; color: #000; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 10px; min-width: 18px; text-align: center; }
+
+    .sidebar-footer { padding: 16px; border-top: 1px solid #1e1e1e; }
+    .sidebar-footer-text { font-size: 11px; color: #444; text-align: center; }
+
+    /* ── MAIN ── */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #0d0d0d; }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 12px;
+      border-bottom: 1px solid #1e1e1e; background: #111; flex-shrink: 0;
+    }
+    .topbar-title { font-size: 16px; font-weight: 600; color: #fff; flex: 1; }
+    .topbar-sub { font-size: 13px; color: #555; }
+
+    /* ── PAGES ── */
+    .page { flex: 1; display: none; overflow: hidden; }
+    .page.active { display: flex; flex-direction: column; }
+
+    /* ── DASHBOARD ── */
+    #page-dashboard { padding: 24px; overflow-y: auto; gap: 20px; }
+    .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .metric-card {
+      background: #161616; border: 1px solid #1e1e1e; border-radius: 12px;
+      padding: 20px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .metric-label { font-size: 12px; color: #555; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+    .metric-value { font-size: 28px; font-weight: 700; color: #fff; }
+    .metric-icon { font-size: 20px; margin-bottom: 4px; }
+    .metric-sub { font-size: 12px; color: #444; }
+
+    .section-title { font-size: 14px; font-weight: 600; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ── CONVERSAS ── */
+    #page-conversas { flex-direction: row; }
+    .conv-list { width: 280px; border-right: 1px solid #1e1e1e; display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+    .conv-search { padding: 12px; border-bottom: 1px solid #1e1e1e; }
+    .conv-search input {
+      width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid #2a2a2a;
+      background: #0d0d0d; color: #e0e0e0; font-size: 13px; outline: none;
+    }
+    .conv-items { flex: 1; overflow-y: auto; }
     .conv-item {
-      padding: 12px 16px; border-bottom: 1px solid #1e1e1e; cursor: pointer;
-      transition: background 0.15s;
+      padding: 14px 16px; border-bottom: 1px solid #161616; cursor: pointer;
+      transition: background 0.12s;
     }
-    .conv-item:hover { background: #1e1e1e; }
-    .conv-item.active { background: #1e2a1e; }
-    .conv-phone { font-size: 14px; font-weight: 500; }
-    .conv-preview { font-size: 12px; color: #888; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .conv-time { font-size: 11px; color: #555; margin-top: 2px; }
-    .empty-state { padding: 24px; text-align: center; color: #555; font-size: 13px; }
+    .conv-item:hover { background: #161616; }
+    .conv-item.active { background: #0a2010; border-left: 3px solid #25d366; }
+    .conv-phone { font-size: 14px; font-weight: 500; color: #ddd; }
+    .conv-preview { font-size: 12px; color: #555; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .conv-time { font-size: 11px; color: #444; margin-top: 3px; }
+    .empty-conv { padding: 32px 16px; text-align: center; color: #444; font-size: 13px; }
 
-    /* MAIN */
-    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .chat-header { padding: 16px 24px; border-bottom: 1px solid #1e1e1e; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+    .chat-avatar { width: 36px; height: 36px; background: #1e2a1e; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+    .chat-header-info { flex: 1; }
+    .chat-header-name { font-size: 14px; font-weight: 600; color: #ddd; }
+    .chat-header-sub { font-size: 12px; color: #555; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; }
+    .chat-placeholder { margin: auto; text-align: center; color: #333; }
+    .chat-placeholder-icon { font-size: 48px; margin-bottom: 12px; }
+    .chat-placeholder p { font-size: 14px; }
+    .msg { max-width: 68%; padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.5; }
+    .msg.user { background: #1a2e1a; border: 1px solid #1e3a1e; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .msg.assistant { background: #161616; border: 1px solid #222; align-self: flex-start; border-bottom-left-radius: 4px; }
+    .msg-role { font-size: 10px; color: #444; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .msg-text { color: #ddd; white-space: pre-wrap; }
 
-    /* CHAT */
-    #chat-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-    .chat-header { padding: 16px 24px; border-bottom: 1px solid #2a2a2a; font-size: 14px; color: #888; }
-    .chat-messages { flex: 1; overflow-y: auto; padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
-    .msg { max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
-    .msg.user { background: #1e2a1e; align-self: flex-end; border-bottom-right-radius: 4px; }
-    .msg.assistant { background: #1a1a1a; border: 1px solid #2a2a2a; align-self: flex-start; border-bottom-left-radius: 4px; }
-    .msg-role { font-size: 11px; color: #555; margin-bottom: 4px; }
-
-    /* PROMPT */
-    #prompt-panel { flex: 1; display: flex; flex-direction: column; padding: 24px; gap: 16px; overflow: hidden; }
-    #prompt-panel h2 { font-size: 15px; font-weight: 600; }
-    #prompt-panel p { font-size: 13px; color: #888; }
+    /* ── PROMPT ── */
+    #page-prompt { padding: 24px; gap: 16px; overflow: hidden; }
+    #page-prompt .page-header { flex-shrink: 0; }
+    #page-prompt h2 { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    #page-prompt p { font-size: 13px; color: #555; }
     #prompt-textarea {
-      flex: 1; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
-      color: #e0e0e0; font-size: 13px; line-height: 1.6; padding: 16px;
-      resize: none; font-family: 'Courier New', monospace;
+      flex: 1; background: #161616; border: 1px solid #1e1e1e; border-radius: 10px;
+      color: #ddd; font-size: 13px; line-height: 1.7; padding: 16px;
+      resize: none; font-family: 'SF Mono', 'Fira Code', monospace; outline: none;
+      transition: border 0.2s;
     }
-    #prompt-textarea:focus { outline: none; border-color: #25d366; }
-    .prompt-actions { display: flex; gap: 12px; align-items: center; }
-    .btn-save {
-      padding: 10px 24px; background: #25d366; color: #000; border: none;
-      border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer;
+    #prompt-textarea:focus { border-color: #25d366; }
+    .prompt-actions { display: flex; gap: 12px; align-items: center; flex-shrink: 0; }
+    .btn-primary {
+      padding: 11px 24px; background: #25d366; color: #000; border: none;
+      border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer; transition: background 0.2s;
     }
-    .btn-save:hover { background: #20c05c; }
-    .btn-save:disabled { background: #2a2a2a; color: #555; cursor: default; }
-    .save-status { font-size: 13px; color: #888; }
+    .btn-primary:hover { background: #1db954; }
+    .btn-primary:disabled { background: #1e1e1e; color: #444; cursor: default; }
+    .save-status { font-size: 13px; color: #555; }
     .save-status.ok { color: #25d366; }
     .save-status.err { color: #ff5555; }
 
-    /* SCROLLBAR */
-    ::-webkit-scrollbar { width: 4px; }
+    /* ── CONEXÃO ── */
+    #page-conexao { padding: 24px; gap: 20px; overflow-y: auto; }
+    .conn-header { flex-shrink: 0; }
+    .conn-header h2 { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .conn-header p { font-size: 13px; color: #555; }
+
+    .conn-card {
+      background: #161616; border: 1px solid #1e1e1e; border-radius: 14px;
+      padding: 32px; display: flex; flex-direction: column; align-items: center; gap: 20px;
+      max-width: 400px;
+    }
+    .qr-box {
+      width: 240px; height: 240px; background: #fff; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;
+    }
+    .qr-box img { width: 100%; height: 100%; object-fit: contain; }
+    .qr-placeholder { text-align: center; color: #888; padding: 20px; }
+    .qr-placeholder-icon { font-size: 48px; margin-bottom: 12px; }
+    .qr-status-text { font-size: 15px; font-weight: 600; color: #ddd; text-align: center; }
+    .qr-sub-text { font-size: 13px; color: #555; text-align: center; line-height: 1.6; }
+
+    .btn-secondary {
+      padding: 11px 24px; background: transparent; color: #25d366; border: 1px solid #25d366;
+      border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-secondary:hover { background: #0a2010; }
+
+    .conn-steps { background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: 12px; padding: 20px; max-width: 400px; }
+    .conn-steps h3 { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
+    .step { display: flex; gap: 12px; margin-bottom: 14px; align-items: flex-start; }
+    .step:last-child { margin-bottom: 0; }
+    .step-num { width: 22px; height: 22px; background: #25d366; color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+    .step-text { font-size: 13px; color: #888; line-height: 1.5; padding-top: 2px; }
+
+    /* ── SCROLLBARS ── */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
   </style>
 </head>
 <body>
@@ -109,65 +204,198 @@
 <!-- LOGIN -->
 <div id="login-screen">
   <div class="login-box">
-    <h1>🤖 Agente WhatsApp</h1>
-    <p>Barbearia do Regis</p>
-    <input type="password" id="password-input" placeholder="Senha do painel" />
+    <div class="login-logo">✂️</div>
+    <h1>Agente WhatsApp</h1>
+    <p>Barbearia do Regis — Painel de Controle</p>
+    <input type="password" id="password-input" placeholder="Senha do painel" autocomplete="current-password" />
     <button onclick="doLogin()">Entrar</button>
-    <div class="login-error" id="login-error">Senha incorreta</div>
+    <div class="login-error" id="login-error">Senha incorreta. Tente novamente.</div>
   </div>
 </div>
 
 <!-- APP -->
 <div id="app">
-  <header>
-    <div class="status-dot"></div>
-    <span class="status-label">Online</span>
-    <h1>Agente WhatsApp — Barbearia do Regis</h1>
-    <button onclick="showPrompt()" style="background:#1e1e1e;border:1px solid #333;color:#ccc;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;">✏️ Prompt</button>
-    <button onclick="showConversations()" style="background:#1e1e1e;border:1px solid #333;color:#ccc;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;">💬 Conversas</button>
-  </header>
 
-  <div class="layout">
-    <!-- SIDEBAR -->
-    <div class="sidebar">
-      <div class="sidebar-content" id="sidebar-content">
-        <div class="empty-state">Carregando conversas...</div>
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        <div class="brand-icon">✂️</div>
+        <div>
+          <div class="brand-text">Barbearia do Regis</div>
+          <div class="brand-sub">Agente WhatsApp</div>
+        </div>
+      </div>
+      <div class="conn-badge" id="conn-badge">
+        <div class="conn-dot"></div>
+        <span id="conn-label">Verificando...</span>
       </div>
     </div>
 
-    <!-- MAIN -->
-    <div class="main">
-      <!-- CHAT -->
-      <div id="chat-panel">
-        <div class="chat-header" id="chat-header">Selecione uma conversa</div>
-        <div class="chat-messages" id="chat-messages">
-          <div class="empty-state" style="margin:auto">👈 Selecione uma conversa ao lado</div>
-        </div>
-      </div>
+    <nav class="nav">
+      <button class="nav-item active" onclick="showPage('dashboard', this)">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Visão Geral</span>
+      </button>
+      <button class="nav-item" onclick="showPage('conversas', this)">
+        <span class="nav-icon">💬</span>
+        <span class="nav-label">Conversas</span>
+        <span class="nav-badge" id="conv-count" style="display:none">0</span>
+      </button>
+      <button class="nav-item" onclick="showPage('prompt', this)">
+        <span class="nav-icon">✏️</span>
+        <span class="nav-label">Prompt do Agente</span>
+      </button>
+      <button class="nav-item" onclick="showPage('conexao', this)">
+        <span class="nav-icon">📱</span>
+        <span class="nav-label">Conexão WhatsApp</span>
+      </button>
+    </nav>
 
-      <!-- PROMPT -->
-      <div id="prompt-panel" style="display:none;">
-        <h2>Prompt do Agente</h2>
-        <p>Edite o prompt abaixo e clique em Salvar. As mudanças entram em vigor imediatamente.</p>
-        <textarea id="prompt-textarea" placeholder="Cole aqui o prompt do agente..."></textarea>
-        <div class="prompt-actions">
-          <button class="btn-save" onclick="savePrompt()">Salvar prompt</button>
-          <span class="save-status" id="save-status"></span>
-        </div>
-      </div>
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-text">v1.0 · Claude Sonnet 4.6</div>
     </div>
   </div>
-</div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <span class="topbar-title" id="topbar-title">Visão Geral</span>
+      <span class="topbar-sub" id="topbar-sub"></span>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-icon">💬</div>
+          <div class="metric-label">Conversas totais</div>
+          <div class="metric-value" id="m-total">—</div>
+          <div class="metric-sub">todos os contatos</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon">🤖</div>
+          <div class="metric-label">Modelo IA</div>
+          <div class="metric-value" style="font-size:16px;padding-top:4px">Claude</div>
+          <div class="metric-sub">Sonnet 4.6</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon">📡</div>
+          <div class="metric-label">Webhook</div>
+          <div class="metric-value" style="font-size:16px;padding-top:4px" id="m-webhook">—</div>
+          <div class="metric-sub">Evolution API</div>
+        </div>
+      </div>
+
+      <div style="margin-top:24px">
+        <div class="section-title">Últimas conversas</div>
+        <div id="dash-convs" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+    </div>
+
+    <!-- CONVERSAS -->
+    <div class="page" id="page-conversas">
+      <div class="conv-list">
+        <div class="conv-search">
+          <input type="text" placeholder="🔍  Buscar contato..." id="conv-search-input" oninput="filterConvs()" />
+        </div>
+        <div class="conv-items" id="conv-items">
+          <div class="empty-conv">Carregando...</div>
+        </div>
+      </div>
+      <div class="chat-area">
+        <div class="chat-header" id="chat-header" style="display:none">
+          <div class="chat-avatar">👤</div>
+          <div class="chat-header-info">
+            <div class="chat-header-name" id="chat-name"></div>
+            <div class="chat-header-sub">WhatsApp</div>
+          </div>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+          <div class="chat-placeholder">
+            <div class="chat-placeholder-icon">💬</div>
+            <p>Selecione uma conversa</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROMPT -->
+    <div class="page" id="page-prompt">
+      <div class="page-header">
+        <h2>Prompt do Agente</h2>
+        <p>Edite as instruções do agente. As mudanças entram em vigor imediatamente.</p>
+      </div>
+      <textarea id="prompt-textarea" placeholder="Cole aqui o prompt do agente..."></textarea>
+      <div class="prompt-actions">
+        <button class="btn-primary" onclick="savePrompt()">Salvar prompt</button>
+        <span class="save-status" id="save-status"></span>
+      </div>
+    </div>
+
+    <!-- CONEXÃO -->
+    <div class="page" id="page-conexao">
+      <div class="conn-header">
+        <h2>Conexão WhatsApp</h2>
+        <p>Escaneie o QR code para conectar o número da barbearia ao agente.</p>
+      </div>
+
+      <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start">
+        <div class="conn-card">
+          <div class="qr-box" id="qr-box">
+            <div class="qr-placeholder">
+              <div class="qr-placeholder-icon">📱</div>
+              <div style="font-size:13px;color:#555">Clique em "Gerar QR Code"</div>
+            </div>
+          </div>
+          <div class="qr-status-text" id="qr-status">Aguardando conexão</div>
+          <div class="qr-sub-text" id="qr-sub">Clique no botão abaixo para gerar o QR code e conectar seu WhatsApp.</div>
+          <button class="btn-primary" onclick="loadQR()" id="btn-qr">Gerar QR Code</button>
+          <button class="btn-secondary" onclick="loadQR()" id="btn-refresh" style="display:none">↻ Atualizar QR Code</button>
+        </div>
+
+        <div class="conn-steps">
+          <h3>Como conectar</h3>
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-text">Clique em <strong>"Gerar QR Code"</strong> ao lado</div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-text">Abra o <strong>WhatsApp</strong> no celular da barbearia</div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-text">Toque nos <strong>3 pontinhos → Dispositivos conectados → Conectar dispositivo</strong></div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-text">Aponte a câmera para o QR code que aparecer aqui</div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div class="step-text">O status ficará <strong style="color:#25d366">Verde — Conectado</strong> quando finalizar</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
 
 <script>
   let PASSWORD = '';
   let currentPhone = null;
+  let allConvs = [];
+  let qrInterval = null;
 
+  // ── LOGIN ──
   function doLogin() {
     const pw = document.getElementById('password-input').value;
     if (!pw) return;
     PASSWORD = pw;
-    // testa autenticação carregando o prompt
     fetch('/api/prompt', { headers: { 'x-panel-password': PASSWORD } })
       .then(r => {
         if (r.status === 401) {
@@ -179,43 +407,108 @@
           document.getElementById('login-screen').style.display = 'none';
           document.getElementById('app').style.display = 'flex';
           document.getElementById('prompt-textarea').value = data.prompt || '';
-          loadConversations();
-          showConversations();
+          initApp();
         });
       });
   }
-
   document.getElementById('password-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') doLogin();
   });
 
-  function showConversations() {
-    document.getElementById('chat-panel').style.display = 'flex';
-    document.getElementById('prompt-panel').style.display = 'none';
+  function initApp() {
+    loadConversations();
+    updateTopbar('Visão Geral', '');
   }
 
-  function showPrompt() {
-    document.getElementById('chat-panel').style.display = 'none';
-    document.getElementById('prompt-panel').style.display = 'flex';
-    loadPrompt();
+  // ── NAVIGATION ──
+  function showPage(name, btn) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    if (btn) btn.classList.add('active');
+
+    const titles = { dashboard: ['Visão Geral', ''], conversas: ['Conversas', ''], prompt: ['Prompt do Agente', ''], conexao: ['Conexão WhatsApp', ''] };
+    updateTopbar(...(titles[name] || [name, '']));
+
+    if (name === 'conexao') checkConnectionStatus();
+    if (name === 'dashboard') loadDashboard();
   }
 
-  function loadPrompt() {
-    fetch('/api/prompt', { headers: { 'x-panel-password': PASSWORD } })
+  function updateTopbar(title, sub) {
+    document.getElementById('topbar-title').textContent = title;
+    document.getElementById('topbar-sub').textContent = sub;
+  }
+
+  // ── CONVERSATIONS ──
+  function loadConversations() {
+    fetch('/api/conversations', { headers: { 'x-panel-password': PASSWORD } })
       .then(r => r.json())
       .then(data => {
-        document.getElementById('prompt-textarea').value = data.prompt || '';
+        allConvs = data.conversations || [];
+        renderConvList(allConvs);
+        const badge = document.getElementById('conv-count');
+        if (allConvs.length > 0) {
+          badge.textContent = allConvs.length;
+          badge.style.display = '';
+        }
+        updateDashMetrics(allConvs);
+      });
+    setTimeout(loadConversations, 30000);
+  }
+
+  function renderConvList(convs) {
+    const el = document.getElementById('conv-items');
+    if (!convs.length) {
+      el.innerHTML = '<div class="empty-conv">💬 Nenhuma conversa ainda.<br>Conecte o WhatsApp para começar.</div>';
+      return;
+    }
+    el.innerHTML = convs.map(c => `
+      <div class="conv-item ${c.phone === currentPhone ? 'active' : ''}" onclick="loadHistory('${c.phone}', this)">
+        <div class="conv-phone">+${c.phone}</div>
+        <div class="conv-preview">${c.reply ? escapeHtml(c.reply.substring(0, 55)) + '...' : 'Sem mensagens'}</div>
+        <div class="conv-time">${c.ts ? formatTime(c.ts) : ''}</div>
+      </div>
+    `).join('');
+  }
+
+  function filterConvs() {
+    const q = document.getElementById('conv-search-input').value.toLowerCase();
+    renderConvList(allConvs.filter(c => c.phone.includes(q)));
+  }
+
+  function loadHistory(phone, el) {
+    currentPhone = phone;
+    document.querySelectorAll('.conv-item').forEach(e => e.classList.remove('active'));
+    if (el) el.classList.add('active');
+    document.getElementById('chat-header').style.display = 'flex';
+    document.getElementById('chat-name').textContent = '+' + phone;
+    document.getElementById('chat-messages').innerHTML = '<div class="chat-placeholder"><div class="chat-placeholder-icon">⏳</div><p>Carregando...</p></div>';
+    fetch(`/api/history?phone=${phone}`, { headers: { 'x-panel-password': PASSWORD } })
+      .then(r => r.json())
+      .then(data => {
+        const container = document.getElementById('chat-messages');
+        if (!data.history || !data.history.length) {
+          container.innerHTML = '<div class="chat-placeholder"><div class="chat-placeholder-icon">💬</div><p>Histórico vazio</p></div>';
+          return;
+        }
+        container.innerHTML = data.history.map(m => `
+          <div class="msg ${m.role}">
+            <div class="msg-role">${m.role === 'user' ? '👤 Cliente' : '🤖 Agente'}</div>
+            <div class="msg-text">${escapeHtml(m.content)}</div>
+          </div>
+        `).join('');
+        container.scrollTop = container.scrollHeight;
       });
   }
 
+  // ── PROMPT ──
   function savePrompt() {
-    const btn = document.querySelector('.btn-save');
+    const btn = document.querySelector('#page-prompt .btn-primary');
     const status = document.getElementById('save-status');
     const prompt = document.getElementById('prompt-textarea').value;
     btn.disabled = true;
     status.textContent = 'Salvando...';
     status.className = 'save-status';
-
     fetch('/api/prompt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-panel-password': PASSWORD },
@@ -234,58 +527,122 @@
     .finally(() => { btn.disabled = false; });
   }
 
-  function loadConversations() {
+  // ── QR CODE / CONEXÃO ──
+  function checkConnectionStatus() {
+    fetch('/api/qrcode', { headers: { 'x-panel-password': PASSWORD } })
+      .then(r => r.json())
+      .then(data => {
+        const badge = document.getElementById('conn-badge');
+        const label = document.getElementById('conn-label');
+        if (data.base64) {
+          // tem QR code — desconectado
+          badge.className = 'conn-badge disconnected';
+          label.textContent = 'Desconectado';
+        } else if (data.instance?.status === 'open') {
+          badge.className = 'conn-badge';
+          label.textContent = 'Conectado';
+        } else {
+          badge.className = 'conn-badge disconnected';
+          label.textContent = 'Desconectado';
+        }
+      }).catch(() => {});
+  }
+
+  function loadQR() {
+    const qrBox = document.getElementById('qr-box');
+    const qrStatus = document.getElementById('qr-status');
+    const qrSub = document.getElementById('qr-sub');
+    const btnQr = document.getElementById('btn-qr');
+    const btnRefresh = document.getElementById('btn-refresh');
+
+    qrBox.innerHTML = '<div class="qr-placeholder"><div class="qr-placeholder-icon">⏳</div><div style="font-size:13px;color:#555">Gerando QR Code...</div></div>';
+    qrStatus.textContent = 'Aguardando...';
+
+    fetch('/api/qrcode', { headers: { 'x-panel-password': PASSWORD } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.base64) {
+          qrBox.innerHTML = `<img src="${data.base64}" alt="QR Code" />`;
+          qrStatus.textContent = 'Escaneie com o WhatsApp';
+          qrSub.textContent = 'Abra o WhatsApp no celular → 3 pontinhos → Dispositivos conectados → Conectar dispositivo';
+          btnQr.style.display = 'none';
+          btnRefresh.style.display = '';
+
+          // auto-refresh a cada 25s (QR expira em ~60s)
+          clearInterval(qrInterval);
+          qrInterval = setInterval(() => {
+            loadQR();
+          }, 25000);
+
+          // atualiza badge
+          document.getElementById('conn-badge').className = 'conn-badge disconnected';
+          document.getElementById('conn-label').textContent = 'Desconectado';
+
+        } else if (data.instance?.status === 'open' || data.status === 'open') {
+          qrBox.innerHTML = '<div class="qr-placeholder"><div class="qr-placeholder-icon">✅</div><div style="font-size:14px;color:#25d366;font-weight:600">WhatsApp Conectado!</div></div>';
+          qrStatus.textContent = '✅ Conectado com sucesso';
+          qrSub.textContent = 'O agente está ativo e respondendo mensagens automaticamente.';
+          btnQr.style.display = 'none';
+          btnRefresh.style.display = '';
+          clearInterval(qrInterval);
+
+          document.getElementById('conn-badge').className = 'conn-badge';
+          document.getElementById('conn-label').textContent = 'Conectado';
+        } else {
+          qrBox.innerHTML = '<div class="qr-placeholder"><div class="qr-placeholder-icon">❌</div><div style="font-size:13px;color:#ff5555">Não foi possível gerar QR</div></div>';
+          qrStatus.textContent = 'Erro ao conectar';
+          qrSub.textContent = 'Verifique se a Evolution API está online e tente novamente.';
+        }
+      })
+      .catch(() => {
+        qrBox.innerHTML = '<div class="qr-placeholder"><div class="qr-placeholder-icon">❌</div><div style="font-size:13px;color:#ff5555">Erro de conexão</div></div>';
+        qrStatus.textContent = 'Erro ao buscar QR Code';
+      });
+  }
+
+  // ── DASHBOARD ──
+  function loadDashboard() {
     fetch('/api/conversations', { headers: { 'x-panel-password': PASSWORD } })
       .then(r => r.json())
       .then(data => {
-        const sidebar = document.getElementById('sidebar-content');
-        if (!data.conversations || data.conversations.length === 0) {
-          sidebar.innerHTML = '<div class="empty-state">Nenhuma conversa ainda</div>';
+        const convs = data.conversations || [];
+        updateDashMetrics(convs);
+        const el = document.getElementById('dash-convs');
+        if (!convs.length) {
+          el.innerHTML = '<div style="color:#444;font-size:13px;padding:12px 0">Nenhuma conversa ainda. Conecte o WhatsApp para começar.</div>';
           return;
         }
-        sidebar.innerHTML = data.conversations.map(c => `
-          <div class="conv-item ${c.phone === currentPhone ? 'active' : ''}" onclick="loadHistory('${c.phone}')">
-            <div class="conv-phone">+${c.phone}</div>
-            <div class="conv-preview">${c.reply ? c.reply.substring(0, 60) + '...' : ''}</div>
-            <div class="conv-time">${c.ts ? new Date(c.ts).toLocaleString('pt-BR') : ''}</div>
+        el.innerHTML = convs.slice(0, 5).map(c => `
+          <div style="background:#161616;border:1px solid #1e1e1e;border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="showPage('conversas'); setTimeout(() => loadHistory('${c.phone}'), 100)">
+            <div style="width:36px;height:36px;background:#0a2010;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">👤</div>
+            <div style="flex:1;overflow:hidden">
+              <div style="font-size:14px;font-weight:500;color:#ddd">+${c.phone}</div>
+              <div style="font-size:12px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">${c.reply ? escapeHtml(c.reply.substring(0, 60)) : ''}</div>
+            </div>
+            <div style="font-size:11px;color:#444;flex-shrink:0">${c.ts ? formatTime(c.ts) : ''}</div>
           </div>
         `).join('');
       });
-
-    // atualizar a cada 30 segundos
-    setTimeout(loadConversations, 30000);
   }
 
-  function loadHistory(phone) {
-    currentPhone = phone;
-    document.getElementById('chat-header').textContent = `+${phone}`;
-    document.getElementById('chat-messages').innerHTML = '<div class="empty-state">Carregando...</div>';
-    showConversations();
-
-    // remarcar ativo na sidebar
-    document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
-    event.currentTarget && event.currentTarget.classList.add('active');
-
-    fetch(`/api/history?phone=${phone}`, { headers: { 'x-panel-password': PASSWORD } })
-      .then(r => r.json())
-      .then(data => {
-        const container = document.getElementById('chat-messages');
-        if (!data.history || data.history.length === 0) {
-          container.innerHTML = '<div class="empty-state">Histórico vazio</div>';
-          return;
-        }
-        container.innerHTML = data.history.map(m => `
-          <div class="msg ${m.role}">
-            <div class="msg-role">${m.role === 'user' ? '👤 Cliente' : '🤖 Agente'}</div>
-            ${escapeHtml(m.content)}
-          </div>
-        `).join('');
-        container.scrollTop = container.scrollHeight;
-      });
+  function updateDashMetrics(convs) {
+    document.getElementById('m-total').textContent = convs.length;
+    document.getElementById('m-webhook').textContent = 'Ativo';
   }
 
-  function escapeHtml(text) {
-    return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  // ── UTILS ──
+  function escapeHtml(t) {
+    return (t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function formatTime(ts) {
+    const d = new Date(ts);
+    const now = new Date();
+    const diff = now - d;
+    if (diff < 60000) return 'agora';
+    if (diff < 3600000) return Math.floor(diff/60000) + 'm';
+    if (diff < 86400000) return Math.floor(diff/3600000) + 'h';
+    return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' });
   }
 </script>
 </body>
