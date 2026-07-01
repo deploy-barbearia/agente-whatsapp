@@ -129,6 +129,69 @@ const FUNNEL_LABELS = {
   },
 };
 
+// ── ESCALONAMENTO: config + notificação ativa ──────────────────────────────
+async function getEscalationConfig() {
+  const r = getRedis();
+  const raw = await r.get("config:escalation");
+  return raw ? JSON.parse(raw) : { numbers: [], groupSubject: "" };
+}
+
+// Descobre o JID do grupo pelo nome (subject) e cacheia 24h — evita hardcode do ID
+async function resolveGroupJid(subject) {
+  if (!subject) return null;
+  const r = getRedis();
+  const cacheKey = `groupjid:${subject}`;
+  const cached = await r.get(cacheKey);
+  if (cached) return cached;
+  try {
+    const resp = await fetch(
+      `${process.env.EVOLUTION_API_URL}/group/fetchAllGroups/${process.env.EVOLUTION_INSTANCE}?getParticipants=false`,
+      { headers: { apikey: process.env.EVOLUTION_API_KEY } }
+    );
+    const data = await resp.json();
+    const list = Array.isArray(data) ? data : (data?.groups || []);
+    const want = subject.trim().toLowerCase();
+    const match = list.find(g => (g.subject || "").trim().toLowerCase() === want);
+    if (match?.id) {
+      await r.set(cacheKey, match.id, "EX", 60 * 60 * 24);
+      return match.id;
+    }
+  } catch (e) {
+    console.error("resolveGroupJid error:", e);
+  }
+  return null;
+}
+
+// Avisa ativamente os destinos (número(s) + grupo) que um cliente precisa de humano
+async function notifyEscalation(phone, clientText) {
+  const r = getRedis();
+  const cfg = await getEscalationConfig();
+  const waLink = `https://wa.me/${phone}`;
+  const alert =
+    `🔔 *Atendimento humano necessário*\n\n` +
+    `Cliente: +${phone}\n` +
+    `Última mensagem: "${(clientText || "").slice(0, 400)}"\n\n` +
+    `A IA foi pausada pra esse cliente. Alguém assume por aqui:\n${waLink}`;
+
+  const targets = [...(cfg.numbers || [])];
+  const groupJid = await resolveGroupJid(cfg.groupSubject);
+  if (groupJid) targets.push(groupJid);
+
+  for (const t of targets) {
+    try {
+      await sendWhatsApp(t, alert);
+    } catch (e) {
+      console.error("notifyEscalation send error:", t, e);
+    }
+  }
+
+  // Log leve pra eventual painel de pendências
+  try {
+    await r.lpush("escalations", JSON.stringify({ phone, text: (clientText || "").slice(0, 400), ts: Date.now() }));
+    await r.ltrim("escalations", 0, 199);
+  } catch {}
+}
+
 // ── HANDLER ───────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(200).json({ ok: true });
@@ -236,7 +299,7 @@ export default async function handler(req, res) {
 ---
 ${FLOW_CONTEXT[flow] || FLOW_CONTEXT.organico}
 
-Quando a conversa exigir intervenção humana (situações complexas, reclamações graves, pedidos fora do seu escopo), finalize sua resposta com a tag [ESCALAR].
+Quando a conversa exigir intervenção humana, finalize sua resposta com a tag [ESCALAR]. Isso inclui SEMPRE: pedidos de marcar, remarcar, confirmar ou cancelar horário/agendamento; qualquer ação que você não executa sozinho (agendar, mudar/cancelar plano, reembolso, resolver pagamento específico); reclamações graves; ou pedidos fora do seu escopo. Nesses casos, ANTES da tag, mande uma resposta curta e calorosa deixando claro que a equipe vai assumir e retornar rapidinho (ex.: "perfeito, já vou pedir pra equipe reservar seu horário e te confirmo já já"). NUNCA tente marcar você mesmo, não mande só um link achando que resolve, e não diga que "já está agendado" — quem agenda é a equipe. O importante é não deixar o cliente no vácuo.
 Quando o cliente demonstrar interesse claro em avançar (quer saber mais, pergunta sobre processo, demonstra intenção), adicione a tag [INTERESSOU].
 Quando o cliente confirmar ou combinar uma avaliação presencial, adicione a tag [AGENDOU].
 As tags são invisíveis para o cliente — use apenas quando realmente aplicável.`;
@@ -257,6 +320,7 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
       reply = reply.replace("[ESCALAR]", "").trim();
       await r.set(`iaoff:${phone}`, "1", "EX", 60 * 60 * 24 * 30);
       await applyLabel(phone, "IA OFF ✕");
+      await notifyEscalation(phone, combinedText); // avisa humano(s) ativamente
     }
 
     if (reply.includes("[INTERESSOU]") && flow === "protese") {
