@@ -51,6 +51,16 @@ async function saveHistory(phone, history) {
 }
 
 // ── EVOLUTION API ──────────────────────────────────────────────────────────
+async function setPresence(phone, presence) {
+  try {
+    await fetch(`${process.env.EVOLUTION_API_URL}/chat/sendPresence/${process.env.EVOLUTION_INSTANCE}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: process.env.EVOLUTION_API_KEY },
+      body: JSON.stringify({ number: phone, presence }),
+    });
+  } catch {}
+}
+
 async function sendWhatsApp(phone, text) {
   await fetch(`${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE}`, {
     method: "POST",
@@ -261,8 +271,12 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
 
     const parts = reply.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
     for (let i = 0; i < parts.length; i++) {
+      const typingMs = Math.min(1500 + parts[i].length * 40, 6000);
+      await setPresence(phone, "composing");
+      await delay(typingMs);
       await sendWhatsApp(phone, parts[i]);
-      if (i < parts.length - 1) await delay(2000 + parts[i].length * 30);
+      await setPresence(phone, "paused");
+      if (i < parts.length - 1) await delay(1500);
     }
 
     // ── Enviar mídias first_contact após primeira resposta ──
