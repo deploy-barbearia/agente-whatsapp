@@ -1,0 +1,8 @@
+{
+  "name": "agente-whatsapp",
+  "version": "1.0.0",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "ioredis": "^5.3.2"
+  }
+}

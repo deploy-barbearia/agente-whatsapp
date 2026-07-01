@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel — Agente WhatsApp</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+
+    /* LOGIN */
+    #login-screen {
+      display: flex; align-items: center; justify-content: center; flex: 1;
+    }
+    .login-box {
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px;
+      padding: 40px; width: 360px; text-align: center;
+    }
+    .login-box h1 { font-size: 20px; margin-bottom: 8px; }
+    .login-box p { color: #888; font-size: 14px; margin-bottom: 24px; }
+    .login-box input {
+      width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333;
+      background: #111; color: #e0e0e0; font-size: 15px; margin-bottom: 12px;
+    }
+    .login-box button {
+      width: 100%; padding: 12px; border-radius: 8px; border: none;
+      background: #25d366; color: #000; font-weight: 600; font-size: 15px; cursor: pointer;
+    }
+    .login-box button:hover { background: #20c05c; }
+    .login-error { color: #ff5555; font-size: 13px; margin-top: 8px; display: none; }
+
+    /* APP */
+    #app { display: none; flex: 1; overflow: hidden; }
+    header {
+      background: #1a1a1a; border-bottom: 1px solid #2a2a2a;
+      padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 16px;
+    }
+    header h1 { font-size: 16px; font-weight: 600; flex: 1; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #25d366; }
+    .status-label { font-size: 13px; color: #888; }
+
+    .layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* SIDEBAR */
+    .sidebar {
+      width: 280px; border-right: 1px solid #2a2a2a; display: flex; flex-direction: column; overflow: hidden;
+    }
+    .sidebar-tabs { display: flex; border-bottom: 1px solid #2a2a2a; }
+    .tab-btn {
+      flex: 1; padding: 12px; background: none; border: none; color: #888;
+      font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent;
+    }
+    .tab-btn.active { color: #25d366; border-bottom-color: #25d366; }
+    .sidebar-content { flex: 1; overflow-y: auto; }
+
+    /* CONVERSAS */
+    .conv-item {
+      padding: 12px 16px; border-bottom: 1px solid #1e1e1e; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .conv-item:hover { background: #1e1e1e; }
+    .conv-item.active { background: #1e2a1e; }
+    .conv-phone { font-size: 14px; font-weight: 500; }
+    .conv-preview { font-size: 12px; color: #888; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .conv-time { font-size: 11px; color: #555; margin-top: 2px; }
+    .empty-state { padding: 24px; text-align: center; color: #555; font-size: 13px; }
+
+    /* MAIN */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* CHAT */
+    #chat-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .chat-header { padding: 16px 24px; border-bottom: 1px solid #2a2a2a; font-size: 14px; color: #888; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+    .msg { max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
+    .msg.user { background: #1e2a1e; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .msg.assistant { background: #1a1a1a; border: 1px solid #2a2a2a; align-self: flex-start; border-bottom-left-radius: 4px; }
+    .msg-role { font-size: 11px; color: #555; margin-bottom: 4px; }
+
+    /* PROMPT */
+    #prompt-panel { flex: 1; display: flex; flex-direction: column; padding: 24px; gap: 16px; overflow: hidden; }
+    #prompt-panel h2 { font-size: 15px; font-weight: 600; }
+    #prompt-panel p { font-size: 13px; color: #888; }
+    #prompt-textarea {
+      flex: 1; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
+      color: #e0e0e0; font-size: 13px; line-height: 1.6; padding: 16px;
+      resize: none; font-family: 'Courier New', monospace;
+    }
+    #prompt-textarea:focus { outline: none; border-color: #25d366; }
+    .prompt-actions { display: flex; gap: 12px; align-items: center; }
+    .btn-save {
+      padding: 10px 24px; background: #25d366; color: #000; border: none;
+      border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer;
+    }
+    .btn-save:hover { background: #20c05c; }
+    .btn-save:disabled { background: #2a2a2a; color: #555; cursor: default; }
+    .save-status { font-size: 13px; color: #888; }
+    .save-status.ok { color: #25d366; }
+    .save-status.err { color: #ff5555; }
+
+    /* SCROLLBAR */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>🤖 Agente WhatsApp</h1>
+    <p>Barbearia do Regis</p>
+    <input type="password" id="password-input" placeholder="Senha do painel" />
+    <button onclick="doLogin()">Entrar</button>
+    <div class="login-error" id="login-error">Senha incorreta</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <div class="status-dot"></div>
+    <span class="status-label">Online</span>
+    <h1>Agente WhatsApp — Barbearia do Regis</h1>
+    <button onclick="showPrompt()" style="background:#1e1e1e;border:1px solid #333;color:#ccc;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;">✏️ Prompt</button>
+    <button onclick="showConversations()" style="background:#1e1e1e;border:1px solid #333;color:#ccc;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;">💬 Conversas</button>
+  </header>
+
+  <div class="layout">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sidebar-content" id="sidebar-content">
+        <div class="empty-state">Carregando conversas...</div>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+      <!-- CHAT -->
+      <div id="chat-panel">
+        <div class="chat-header" id="chat-header">Selecione uma conversa</div>
+        <div class="chat-messages" id="chat-messages">
+          <div class="empty-state" style="margin:auto">👈 Selecione uma conversa ao lado</div>
+        </div>
+      </div>
+
+      <!-- PROMPT -->
+      <div id="prompt-panel" style="display:none;">
+        <h2>Prompt do Agente</h2>
+        <p>Edite o prompt abaixo e clique em Salvar. As mudanças entram em vigor imediatamente.</p>
+        <textarea id="prompt-textarea" placeholder="Cole aqui o prompt do agente..."></textarea>
+        <div class="prompt-actions">
+          <button class="btn-save" onclick="savePrompt()">Salvar prompt</button>
+          <span class="save-status" id="save-status"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let PASSWORD = '';
+  let currentPhone = null;
+
+  function doLogin() {
+    const pw = document.getElementById('password-input').value;
+    if (!pw) return;
+    PASSWORD = pw;
+    // testa autenticação carregando o prompt
+    fetch('/api/prompt', { headers: { 'x-panel-password': PASSWORD } })
+      .then(r => {
+        if (r.status === 401) {
+          document.getElementById('login-error').style.display = 'block';
+          PASSWORD = '';
+          return;
+        }
+        return r.json().then(data => {
+          document.getElementById('login-screen').style.display = 'none';
+          document.getElementById('app').style.display = 'flex';
+          document.getElementById('prompt-textarea').value = data.prompt || '';
+          loadConversations();
+          showConversations();
+        });
+      });
+  }
+
+  document.getElementById('password-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+
+  function showConversations() {
+    document.getElementById('chat-panel').style.display = 'flex';
+    document.getElementById('prompt-panel').style.display = 'none';
+  }
+
+  function showPrompt() {
+    document.getElementById('chat-panel').style.display = 'none';
+    document.getElementById('prompt-panel').style.display = 'flex';
+    loadPrompt();
+  }
+
+  function loadPrompt() {
+    fetch('/api/prompt', { headers: { 'x-panel-password': PASSWORD } })
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('prompt-textarea').value = data.prompt || '';
+      });
+  }
+
+  function savePrompt() {
+    const btn = document.querySelector('.btn-save');
+    const status = document.getElementById('save-status');
+    const prompt = document.getElementById('prompt-textarea').value;
+    btn.disabled = true;
+    status.textContent = 'Salvando...';
+    status.className = 'save-status';
+
+    fetch('/api/prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-panel-password': PASSWORD },
+      body: JSON.stringify({ prompt })
+    })
+    .then(r => r.json())
+    .then(() => {
+      status.textContent = '✓ Salvo com sucesso';
+      status.className = 'save-status ok';
+      setTimeout(() => { status.textContent = ''; }, 3000);
+    })
+    .catch(() => {
+      status.textContent = '✗ Erro ao salvar';
+      status.className = 'save-status err';
+    })
+    .finally(() => { btn.disabled = false; });
+  }
+
+  function loadConversations() {
+    fetch('/api/conversations', { headers: { 'x-panel-password': PASSWORD } })
+      .then(r => r.json())
+      .then(data => {
+        const sidebar = document.getElementById('sidebar-content');
+        if (!data.conversations || data.conversations.length === 0) {
+          sidebar.innerHTML = '<div class="empty-state">Nenhuma conversa ainda</div>';
+          return;
+        }
+        sidebar.innerHTML = data.conversations.map(c => `
+          <div class="conv-item ${c.phone === currentPhone ? 'active' : ''}" onclick="loadHistory('${c.phone}')">
+            <div class="conv-phone">+${c.phone}</div>
+            <div class="conv-preview">${c.reply ? c.reply.substring(0, 60) + '...' : ''}</div>
+            <div class="conv-time">${c.ts ? new Date(c.ts).toLocaleString('pt-BR') : ''}</div>
+          </div>
+        `).join('');
+      });
+
+    // atualizar a cada 30 segundos
+    setTimeout(loadConversations, 30000);
+  }
+
+  function loadHistory(phone) {
+    currentPhone = phone;
+    document.getElementById('chat-header').textContent = `+${phone}`;
+    document.getElementById('chat-messages').innerHTML = '<div class="empty-state">Carregando...</div>';
+    showConversations();
+
+    // remarcar ativo na sidebar
+    document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
+    event.currentTarget && event.currentTarget.classList.add('active');
+
+    fetch(`/api/history?phone=${phone}`, { headers: { 'x-panel-password': PASSWORD } })
+      .then(r => r.json())
+      .then(data => {
+        const container = document.getElementById('chat-messages');
+        if (!data.history || data.history.length === 0) {
+          container.innerHTML = '<div class="empty-state">Histórico vazio</div>';
+          return;
+        }
+        container.innerHTML = data.history.map(m => `
+          <div class="msg ${m.role}">
+            <div class="msg-role">${m.role === 'user' ? '👤 Cliente' : '🤖 Agente'}</div>
+            ${escapeHtml(m.content)}
+          </div>
+        `).join('');
+        container.scrollTop = container.scrollHeight;
+      });
+  }
+
+  function escapeHtml(text) {
+    return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  }
+</script>
+</body>
+</html>
