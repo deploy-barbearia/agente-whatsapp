@@ -1140,13 +1140,37 @@ function handleMidiaUpload(event, flowKey) {
   const file = event.target.files[0];
   if (!file) return;
   const type = file.type.startsWith('audio') ? 'audio' : file.type.startsWith('video') ? 'video' : 'image';
-  const reader = new FileReader();
-  reader.onload = e => {
-    if (!midiaData[flowKey]) midiaData[flowKey] = [];
-    midiaData[flowKey].push({ type, data: e.target.result, caption: '', trigger: 'first_contact' });
-    renderMidiaList(flowKey);
-  };
-  reader.readAsDataURL(file);
+
+  if (type === 'image') {
+    // Comprime para max 1200px e qualidade 75% antes de salvar
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 1200;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const data = canvas.toDataURL('image/jpeg', 0.75);
+      URL.revokeObjectURL(url);
+      if (!midiaData[flowKey]) midiaData[flowKey] = [];
+      midiaData[flowKey].push({ type, data, caption: '', trigger: 'first_contact' });
+      renderMidiaList(flowKey);
+    };
+    img.src = url;
+  } else {
+    const reader = new FileReader();
+    reader.onload = e => {
+      if (!midiaData[flowKey]) midiaData[flowKey] = [];
+      midiaData[flowKey].push({ type, data: e.target.result, caption: '', trigger: 'first_contact' });
+      renderMidiaList(flowKey);
+    };
+    reader.readAsDataURL(file);
+  }
   event.target.value = '';
 }
 
@@ -1157,15 +1181,23 @@ function removeMidiaItem(flowKey, index) {
 
 function saveMidia(flowKey) {
   const msg = document.getElementById(`midia-save-msg-${flowKey}`);
+  msg.style.color = '#999';
   msg.textContent = 'Salvando...';
   fetch('/api/media-config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-panel-password': PW },
     body: JSON.stringify({ flow: flowKey, items: midiaData[flowKey] || [] }),
-  }).then(r => r.json()).then(() => {
-    msg.textContent = 'Salvo';
+  })
+  .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
+  .then(() => {
+    msg.style.color = '#25d366';
+    msg.textContent = 'Salvo com sucesso';
     setTimeout(() => msg.textContent = '', 3000);
-  }).catch(() => { msg.textContent = 'Erro'; });
+  })
+  .catch(err => {
+    msg.style.color = '#e55';
+    msg.textContent = 'Erro ao salvar: ' + err;
+  });
 }
 
 // UTILS

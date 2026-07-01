@@ -1,3 +1,7 @@
+export const config = {
+  api: { bodyParser: { sizeLimit: "20mb" } },
+};
+
 import Redis from "ioredis";
 
 let redis;
