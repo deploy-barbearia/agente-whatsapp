@@ -69,6 +69,19 @@ async function applyLabel(phone, label) {
   } catch {}
 }
 
+// Etiquetas do funil por fluxo
+const FUNNEL_LABELS = {
+  protese: {
+    lead:       "TRÁFEGO PRÓTESE - LEADS",
+    respondeu:  "TRÁFEGO PRÓTESE - RESPONDEU",
+    interessou: "TRÁFEGO PRÓTESE - SE INTERESSOU",
+    agendou:    "TRÁFEGO PRÓTESE - AGENDOU AVALIAÇÃO",
+  },
+  clube: {
+    lead: "LEADS - CLUB VIP",
+  },
+};
+
 // ── HANDLER ───────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(200).json({ ok: true });
@@ -114,13 +127,27 @@ export default async function handler(req, res) {
 
     // ── Detectar fluxo na primeira mensagem ──
     const history = await getHistory(phone);
-    if (history.length === 0) {
+    const isFirstMessage = history.length === 0;
+
+    if (isFirstMessage) {
       const flow = detectFlow(text);
       await r.set(`fluxo:${phone}`, flow, "EX", 60 * 60 * 24 * 90);
       await r.sadd(`phones:${flow}`, phone);
+      // Etiqueta de entrada no funil
+      const labels = FUNNEL_LABELS[flow];
+      if (labels?.lead) await applyLabel(phone, labels.lead);
     }
 
     const flow = (await r.get(`fluxo:${phone}`)) || "organico";
+
+    // ── Etiqueta "respondeu" a partir da segunda mensagem ──
+    if (!isFirstMessage && flow === "protese") {
+      const jaRespondeu = await r.get(`label:respondeu:${phone}`);
+      if (!jaRespondeu) {
+        await applyLabel(phone, FUNNEL_LABELS.protese.respondeu);
+        await r.set(`label:respondeu:${phone}`, "1", "EX", 60 * 60 * 24 * 90);
+      }
+    }
 
     // ── Montar prompt com contexto de fluxo ──
     const systemPrompt = await getPrompt();
@@ -129,7 +156,10 @@ export default async function handler(req, res) {
 ---
 ${FLOW_CONTEXT[flow] || FLOW_CONTEXT.organico}
 
-Quando a conversa exigir intervenção humana (situações complexas, reclamações graves, pedidos fora do seu escopo), finalize sua resposta com a tag [ESCALAR] no final.`;
+Quando a conversa exigir intervenção humana (situações complexas, reclamações graves, pedidos fora do seu escopo), finalize sua resposta com a tag [ESCALAR].
+Quando o cliente demonstrar interesse claro em avançar (quer saber mais, pergunta sobre processo, demonstra intenção), adicione a tag [INTERESSOU].
+Quando o cliente confirmar ou combinar uma avaliação presencial, adicione a tag [AGENDOU].
+As tags são invisíveis para o cliente — use apenas quando realmente aplicável.`;
 
     history.push({ role: "user", content: text });
 
@@ -142,11 +172,25 @@ Quando a conversa exigir intervenção humana (situações complexas, reclamaç�
 
     let reply = response.content[0].text;
 
-    // ── Auto-escalonamento via [ESCALAR] ──
+    // ── Processar tags do Claude ──
     if (reply.includes("[ESCALAR]")) {
       reply = reply.replace("[ESCALAR]", "").trim();
       await r.set(`iaoff:${phone}`, "1", "EX", 60 * 60 * 24 * 30);
-      await applyLabel(phone, "IA OFF");
+      await applyLabel(phone, "IA OFF ✕");
+    }
+
+    if (reply.includes("[INTERESSOU]") && flow === "protese") {
+      reply = reply.replace("[INTERESSOU]", "").trim();
+      const jaInteressou = await r.get(`label:interessou:${phone}`);
+      if (!jaInteressou) {
+        await applyLabel(phone, FUNNEL_LABELS.protese.interessou);
+        await r.set(`label:interessou:${phone}`, "1", "EX", 60 * 60 * 24 * 90);
+      }
+    }
+
+    if (reply.includes("[AGENDOU]") && flow === "protese") {
+      reply = reply.replace("[AGENDOU]", "").trim();
+      await applyLabel(phone, FUNNEL_LABELS.protese.agendou);
     }
 
     // ── Salvar histórico ──
