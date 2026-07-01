@@ -172,12 +172,37 @@ export default async function handler(req, res) {
     // ── IA OFF: ignorar este cliente ──
     if (await r.get(`iaoff:${phone}`)) return res.status(200).json({ ok: true });
 
+    // ── DEBOUNCE: acumula mensagens por 8s antes de processar ──
+    const DEBOUNCE_MS = 8000;
+    await r.rpush(`pending:${phone}`, text);
+    await r.expire(`pending:${phone}`, 60);
+
+    // Tenta adquirir lock exclusivo (só uma invocação processa por vez)
+    const gotLock = await r.set(`lock:${phone}`, "1", "NX", "EX", 60);
+    if (!gotLock) {
+      // Outra invocação já está aguardando — só acumulamos e saímos
+      return res.status(200).json({ ok: true });
+    }
+
+    // Tem o lock: espera o debounce para capturar mensagens que chegarem juntas
+    await new Promise(resolve => setTimeout(resolve, DEBOUNCE_MS));
+
+    // Lê e limpa todas as mensagens acumuladas
+    const pending = await r.lrange(`pending:${phone}`, 0, -1);
+    await r.del(`pending:${phone}`);
+    await r.del(`lock:${phone}`);
+
+    if (!pending || pending.length === 0) return res.status(200).json({ ok: true });
+
+    // Une tudo em uma só mensagem para o Claude
+    const combinedText = pending.join("\n");
+
     // ── Detectar fluxo na primeira mensagem ──
     const history = await getHistory(phone);
     const isFirstMessage = history.length === 0;
 
     if (isFirstMessage) {
-      const flow = detectFlow(text);
+      const flow = detectFlow(combinedText);
       await r.set(`fluxo:${phone}`, flow, "EX", 60 * 60 * 24 * 90);
       await r.sadd(`phones:${flow}`, phone);
       // Etiqueta de entrada no funil
@@ -216,7 +241,7 @@ Quando o cliente demonstrar interesse claro em avançar (quer saber mais, pergun
 Quando o cliente confirmar ou combinar uma avaliação presencial, adicione a tag [AGENDOU].
 As tags são invisíveis para o cliente — use apenas quando realmente aplicável.`;
 
-    history.push({ role: "user", content: text });
+    history.push({ role: "user", content: combinedText });
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
@@ -259,7 +284,7 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
 
     // ── Registros para o painel ──
     await r.zadd("conversations", Date.now(), phone);
-    await r.set(`last:${phone}`, JSON.stringify({ phone, text, reply, ts: Date.now() }), "EX", 60 * 60 * 24 * 30);
+    await r.set(`last:${phone}`, JSON.stringify({ phone, text: combinedText, reply, ts: Date.now() }), "EX", 60 * 60 * 24 * 30);
 
     // ── Timestamp de última mensagem real (para follow-up) ──
     await r.set(`lastmsg:${phone}`, Date.now(), "EX", 60 * 60 * 24 * 90);
