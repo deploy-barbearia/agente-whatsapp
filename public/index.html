@@ -295,18 +295,38 @@
     .toggle input:checked + .toggle-slider { background: #25d366; }
     .toggle input:checked + .toggle-slider:before { transform: translateX(18px); }
 
-    .fu-days-row { display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
-    .fu-day-field { display: flex; flex-direction: column; gap: 5px; }
-    .fu-day-label { font-size: 11px; font-weight: 600; color: #bbb; text-transform: uppercase; letter-spacing: 0.5px; }
-    .fu-day-input {
-      width: 80px; padding: 8px 12px;
+    .fu-stages { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .fu-stage-row {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .fu-stage-num { font-size: 11px; font-weight: 700; color: #bbb; width: 20px; flex-shrink: 0; text-align: right; }
+    .fu-stage-input {
+      width: 90px; padding: 8px 12px;
       border: 1.5px solid #ebebeb; border-radius: 9px;
       font-size: 14px; color: #111; outline: none;
-      transition: border 0.2s;
+      transition: border 0.2s; flex-shrink: 0;
     }
-    .fu-day-input:focus { border-color: #25d366; }
+    .fu-stage-input:focus { border-color: #25d366; }
+    .fu-stage-unit { font-size: 13px; color: #bbb; }
+    .fu-stage-remove {
+      margin-left: auto;
+      border: none; background: none; cursor: pointer;
+      color: #ccc; font-size: 16px; line-height: 1;
+      padding: 4px; border-radius: 6px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .fu-stage-remove:hover { color: #e53e3e; background: #fff0f0; }
+    .btn-add-stage {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1.5px dashed #e0e0e0; background: none;
+      color: #aaa; font-size: 13px; font-weight: 500;
+      padding: 7px 14px; border-radius: 9px; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      margin-bottom: 18px;
+    }
+    .btn-add-stage:hover { border-color: #25d366; color: #25d366; }
 
-    .fu-instruction-label { font-size: 11px; font-weight: 600; color: #bbb; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .fu-field-label { font-size: 11px; font-weight: 600; color: #bbb; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
     .fu-instruction {
       width: 100%; padding: 12px 14px;
       border: 1.5px solid #ebebeb; border-radius: 10px;
@@ -526,96 +546,9 @@
           <p class="pg-desc" style="margin-top:4px">Configure quando e como o agente retoma conversas paradas. O Claude le o historico e escreve a mensagem com base na instrucao abaixo.</p>
         </div>
 
-        <!-- Protese -->
-        <div class="fu-card">
-          <div class="fu-card-head">
-            <div>
-              <div class="fu-card-title">Protese Capilar</div>
-              <div class="fu-card-sub">Fluxo de leads de trafego pago</div>
-            </div>
-            <div class="toggle-wrap">
-              <span class="toggle-label">Ativo</span>
-              <label class="toggle">
-                <input type="checkbox" id="fu-protese-active" checked />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
-          <div class="fu-days-row">
-            <div class="fu-day-field">
-              <div class="fu-day-label">1a tentativa</div>
-              <input class="fu-day-input" type="number" id="fu-protese-d0" placeholder="dias" min="1" />
-            </div>
-            <div class="fu-day-field">
-              <div class="fu-day-label">2a tentativa</div>
-              <input class="fu-day-input" type="number" id="fu-protese-d1" placeholder="dias" min="1" />
-            </div>
-            <div class="fu-day-field">
-              <div class="fu-day-label">3a tentativa</div>
-              <input class="fu-day-input" type="number" id="fu-protese-d2" placeholder="dias" min="1" />
-            </div>
-          </div>
-          <div class="fu-instruction-label">Instrucao para o Claude</div>
-          <textarea class="fu-instruction" id="fu-protese-instruction" placeholder="Descreva o objetivo e o tom da mensagem..."></textarea>
-        </div>
-
-        <!-- Clube VIP -->
-        <div class="fu-card">
-          <div class="fu-card-head">
-            <div>
-              <div class="fu-card-title">Clube VIP</div>
-              <div class="fu-card-sub">Leads de assinatura / plano mensal</div>
-            </div>
-            <div class="toggle-wrap">
-              <span class="toggle-label">Ativo</span>
-              <label class="toggle">
-                <input type="checkbox" id="fu-clube-active" checked />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
-          <div class="fu-days-row">
-            <div class="fu-day-field">
-              <div class="fu-day-label">1a tentativa</div>
-              <input class="fu-day-input" type="number" id="fu-clube-d0" placeholder="dias" min="1" />
-            </div>
-            <div class="fu-day-field">
-              <div class="fu-day-label">2a tentativa</div>
-              <input class="fu-day-input" type="number" id="fu-clube-d1" placeholder="dias" min="1" />
-            </div>
-            <div class="fu-day-field">
-              <div class="fu-day-label">3a tentativa</div>
-              <input class="fu-day-input" type="number" id="fu-clube-d2" placeholder="dias" min="1" />
-            </div>
-          </div>
-          <div class="fu-instruction-label">Instrucao para o Claude</div>
-          <textarea class="fu-instruction" id="fu-clube-instruction" placeholder="Descreva o objetivo e o tom da mensagem..."></textarea>
-        </div>
-
-        <!-- Organico -->
-        <div class="fu-card">
-          <div class="fu-card-head">
-            <div>
-              <div class="fu-card-title">Organico</div>
-              <div class="fu-card-sub">Contatos que entraram por conta propria</div>
-            </div>
-            <div class="toggle-wrap">
-              <span class="toggle-label">Ativo</span>
-              <label class="toggle">
-                <input type="checkbox" id="fu-organico-active" checked />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
-          <div class="fu-days-row">
-            <div class="fu-day-field">
-              <div class="fu-day-label">1a tentativa</div>
-              <input class="fu-day-input" type="number" id="fu-organico-d0" placeholder="dias" min="1" />
-            </div>
-          </div>
-          <div class="fu-instruction-label">Instrucao para o Claude</div>
-          <textarea class="fu-instruction" id="fu-organico-instruction" placeholder="Descreva o objetivo e o tom da mensagem..."></textarea>
-        </div>
+        <div id="fu-protese-card" class="fu-card"></div>
+        <div id="fu-clube-card" class="fu-card"></div>
+        <div id="fu-organico-card" class="fu-card"></div>
 
         <div class="fu-actions">
           <button class="btn-primary" onclick="saveFollowup()">Salvar configuracoes</button>
@@ -827,23 +760,89 @@ function savePrompt() {
 }
 
 // FOLLOW-UP CONFIG
+const FU_FLOWS = {
+  protese:  { title: 'Protese Capilar',  sub: 'Fluxo de leads de trafego pago' },
+  clube:    { title: 'Clube VIP',         sub: 'Leads de assinatura / plano mensal' },
+  organico: { title: 'Organico',          sub: 'Contatos que entraram por conta propria' },
+};
+
+function renderFuCard(flow, cfg) {
+  const { title, sub } = FU_FLOWS[flow];
+  const days = cfg.days || [];
+  const active = cfg.active !== false;
+  const instruction = cfg.instruction || '';
+
+  const stageRows = days.map((d, i) => `
+    <div class="fu-stage-row" data-flow="${flow}">
+      <span class="fu-stage-num">${i+1}</span>
+      <input class="fu-stage-input" type="number" value="${d}" min="1" placeholder="dias" />
+      <span class="fu-stage-unit">dias apos silencio</span>
+      <button class="fu-stage-remove" onclick="removeFuStage(this)" title="Remover">&#x2715;</button>
+    </div>
+  `).join('');
+
+  document.getElementById(`fu-${flow}-card`).innerHTML = `
+    <div class="fu-card-head">
+      <div>
+        <div class="fu-card-title">${title}</div>
+        <div class="fu-card-sub">${sub}</div>
+      </div>
+      <div class="toggle-wrap">
+        <span class="toggle-label">Ativo</span>
+        <label class="toggle">
+          <input type="checkbox" id="fu-${flow}-active" ${active ? 'checked' : ''} />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+    <div class="fu-field-label">Tentativas</div>
+    <div class="fu-stages" id="fu-${flow}-stages">${stageRows}</div>
+    <button class="btn-add-stage" onclick="addFuStage('${flow}')">+ Adicionar tentativa</button>
+    <div class="fu-field-label">Instrucao para o Claude</div>
+    <textarea class="fu-instruction" id="fu-${flow}-instruction" placeholder="Descreva o objetivo e o tom da mensagem...">${esc(instruction)}</textarea>
+  `;
+  // renumerar após render
+  renumberStages(flow);
+}
+
+function addFuStage(flow) {
+  const container = document.getElementById(`fu-${flow}-stages`);
+  const div = document.createElement('div');
+  div.className = 'fu-stage-row';
+  div.dataset.flow = flow;
+  div.innerHTML = `
+    <span class="fu-stage-num"></span>
+    <input class="fu-stage-input" type="number" min="1" placeholder="dias" />
+    <span class="fu-stage-unit">dias apos silencio</span>
+    <button class="fu-stage-remove" onclick="removeFuStage(this)" title="Remover">&#x2715;</button>
+  `;
+  container.appendChild(div);
+  renumberStages(flow);
+  div.querySelector('input').focus();
+}
+
+function removeFuStage(btn) {
+  const row = btn.closest('.fu-stage-row');
+  const flow = row.dataset.flow;
+  row.remove();
+  renumberStages(flow);
+}
+
+function renumberStages(flow) {
+  document.querySelectorAll(`#fu-${flow}-stages .fu-stage-row`).forEach((row, i) => {
+    row.querySelector('.fu-stage-num').textContent = i + 1;
+  });
+}
+
 function loadFollowupConfig() {
   fetch('/api/followup-config', { headers: { 'x-panel-password': PW } })
     .then(r => r.json())
     .then(d => {
       const c = d.config;
-      const set = (flow, cfg) => {
-        document.getElementById(`fu-${flow}-active`).checked = cfg.active !== false;
-        const days = cfg.days || [];
-        for (let i = 0; i < 3; i++) {
-          const el = document.getElementById(`fu-${flow}-d${i}`);
-          if (el) el.value = days[i] || '';
-        }
-        document.getElementById(`fu-${flow}-instruction`).value = cfg.instruction || '';
-      };
-      if (c.protese)  set('protese',  c.protese);
-      if (c.clube)    set('clube',    c.clube);
-      if (c.organico) set('organico', c.organico);
+      Object.keys(FU_FLOWS).forEach(flow => renderFuCard(flow, c[flow] || {}));
+    })
+    .catch(() => {
+      Object.keys(FU_FLOWS).forEach(flow => renderFuCard(flow, {}));
     });
 }
 
@@ -851,12 +850,12 @@ function saveFollowup() {
   const btn = document.querySelector('#page-followup .btn-primary');
   const msg = document.getElementById('fu-save-msg');
 
-  const get = (flow, numDays) => {
+  const getFlow = (flow) => {
     const days = [];
-    for (let i = 0; i < numDays; i++) {
-      const v = parseInt(document.getElementById(`fu-${flow}-d${i}`)?.value);
+    document.querySelectorAll(`#fu-${flow}-stages .fu-stage-input`).forEach(inp => {
+      const v = parseInt(inp.value);
       if (!isNaN(v) && v > 0) days.push(v);
-    }
+    });
     return {
       active: document.getElementById(`fu-${flow}-active`).checked,
       days,
@@ -864,11 +863,8 @@ function saveFollowup() {
     };
   };
 
-  const config = {
-    protese:  get('protese',  3),
-    clube:    get('clube',    3),
-    organico: get('organico', 1),
-  };
+  const config = {};
+  Object.keys(FU_FLOWS).forEach(flow => config[flow] = getFlow(flow));
 
   btn.disabled = true; msg.textContent = 'Salvando...'; msg.className = 'save-msg';
   fetch('/api/followup-config', {
