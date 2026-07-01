@@ -717,7 +717,7 @@ function go(page, btn) {
 function checkConn() {
   fetch('/api/qrcode', { headers: { 'x-panel-password': PW } })
     .then(r => r.json())
-    .then(d => setConnStatus(!d.base64 && d.instance?.status === 'open'))
+    .then(d => setConnStatus(!d.base64 && d.instance?.state === 'open'))
     .catch(() => setConnStatus(false));
 }
 function setConnStatus(online) {
@@ -1022,7 +1022,7 @@ function loadQR() {
         btnGen.style.display = 'none'; btnRef.style.display = '';
         setConnStatus(false);
         qrTimer = setInterval(loadQR, 25000);
-      } else if (d.instance?.status === 'open') {
+      } else if (d.instance?.state === 'open') {
         frame.innerHTML = '<div class="qr-empty"><div class="qr-empty-text" style="color:#25d366;font-weight:700">Conectado</div></div>';
         status.textContent = 'WhatsApp conectado com sucesso';
         hint.textContent = 'O agente esta ativo e respondendo automaticamente.';
