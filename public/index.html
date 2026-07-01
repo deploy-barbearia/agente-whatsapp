@@ -1071,7 +1071,9 @@ const MIDIA_FLOWS = [
   { key: 'clube',   label: 'Clube VIP' },
   { key: 'organico',label: 'Organico' },
 ];
-const midiaData = {}; // flow → [{type,data,caption,trigger}]
+const midiaData = {}; // flow → [{id,type,data,caption,trigger}]
+
+function midiaUid() { return Math.random().toString(36).slice(2,10); }
 
 function loadMidia() {
   const container = document.getElementById('midia-flows');
@@ -1087,7 +1089,6 @@ function renderMidiaFlows() {
   const container = document.getElementById('midia-flows');
   container.innerHTML = '';
   for (const flow of MIDIA_FLOWS) {
-    const items = midiaData[flow.key] || [];
     const card = document.createElement('div');
     card.className = 'midia-flow-card';
     card.innerHTML = `
@@ -1098,8 +1099,6 @@ function renderMidiaFlows() {
         Adicionar imagem / audio
         <input type="file" accept="image/*,audio/*,video/*" style="display:none" onchange="handleMidiaUpload(event,'${flow.key}')">
       </label>
-      <button onclick="saveMidia('${flow.key}')" style="margin-left:10px;padding:8px 16px;background:#25d366;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Salvar</button>
-      <span id="midia-save-msg-${flow.key}" style="margin-left:8px;font-size:12px;color:#999"></span>
     `;
     container.appendChild(card);
     renderMidiaList(flow.key);
@@ -1114,25 +1113,27 @@ function renderMidiaList(flowKey) {
     list.innerHTML = '<div style="font-size:13px;color:#bbb;margin-bottom:12px">Nenhuma midia configurada.</div>';
     return;
   }
-  list.innerHTML = items.map((item, i) => {
-    const icon = item.type === 'audio' ? '🎵' : item.type === 'video' ? '🎬' : '';
+  list.innerHTML = items.map((item) => {
+    const icon = item.type === 'audio' ? '♪' : item.type === 'video' ? '▶' : '';
     const thumb = item.type === 'image'
       ? `<img src="${item.data}" style="width:48px;height:48px;border-radius:8px;object-fit:cover">`
       : `<div class="midia-thumb">${icon}</div>`;
+    const statusId = `midia-st-${item.id}`;
     return `
-      <div class="midia-item">
+      <div class="midia-item" id="midia-row-${item.id}">
         ${thumb}
         <div class="midia-info">
           <input type="text" placeholder="Legenda (opcional)" value="${esc(item.caption||'')}"
-            oninput="midiaData['${flowKey}'][${i}].caption=this.value">
+            onchange="patchMidia('${flowKey}','${item.id}',{caption:this.value})">
           <br>
-          <select onchange="midiaData['${flowKey}'][${i}].trigger=this.value">
+          <select onchange="patchMidia('${flowKey}','${item.id}',{trigger:this.value})">
             <option value="first_contact" ${item.trigger==='first_contact'?'selected':''}>Enviar no primeiro contato</option>
             <option value="second_message" ${item.trigger==='second_message'?'selected':''}>Enviar na segunda mensagem</option>
             <option value="on_interest" ${item.trigger==='on_interest'?'selected':''}>Enviar quando demonstrar interesse</option>
           </select>
+          <span id="${statusId}" style="font-size:11px;margin-left:6px"></span>
         </div>
-        <button class="midia-del" onclick="removeMidiaItem('${flowKey}',${i})">×</button>
+        <button class="midia-del" onclick="deleteMidiaItem('${flowKey}','${item.id}')">×</button>
       </div>`;
   }).join('');
 }
@@ -1141,13 +1142,37 @@ function handleMidiaUpload(event, flowKey) {
   const file = event.target.files[0];
   if (!file) return;
   const type = file.type.startsWith('audio') ? 'audio' : file.type.startsWith('video') ? 'video' : 'image';
+  const id = midiaUid();
+
+  const doSave = (data) => {
+    if (!midiaData[flowKey]) midiaData[flowKey] = [];
+    const item = { id, type, data, caption: '', trigger: 'first_contact' };
+    midiaData[flowKey].push(item);
+    renderMidiaList(flowKey);
+    // Salvar imediatamente no backend
+    const st = document.getElementById(`midia-st-${id}`);
+    if (st) { st.style.color='#999'; st.textContent='Salvando...'; }
+    fetch('/api/media-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-panel-password': PW },
+      body: JSON.stringify({ flow: flowKey, id, type, data, caption: '', trigger: 'first_contact' }),
+    })
+    .then(r => r.ok ? r.json() : Promise.reject('HTTP '+r.status))
+    .then(() => {
+      const s = document.getElementById(`midia-st-${id}`);
+      if (s) { s.style.color='#25d366'; s.textContent='Salvo'; setTimeout(()=>s.textContent='',3000); }
+    })
+    .catch(err => {
+      const s = document.getElementById(`midia-st-${id}`);
+      if (s) { s.style.color='#e55'; s.textContent='Erro: '+err; }
+    });
+  };
 
   if (type === 'image') {
-    // Comprime para max 1200px e qualidade 75% antes de salvar
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      const MAX = 1200;
+      const MAX = 900;
       let w = img.width, h = img.height;
       if (w > MAX || h > MAX) {
         if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
@@ -1156,48 +1181,45 @@ function handleMidiaUpload(event, flowKey) {
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      const data = canvas.toDataURL('image/jpeg', 0.75);
       URL.revokeObjectURL(url);
-      if (!midiaData[flowKey]) midiaData[flowKey] = [];
-      midiaData[flowKey].push({ type, data, caption: '', trigger: 'first_contact' });
-      renderMidiaList(flowKey);
+      doSave(canvas.toDataURL('image/jpeg', 0.70));
     };
     img.src = url;
   } else {
     const reader = new FileReader();
-    reader.onload = e => {
-      if (!midiaData[flowKey]) midiaData[flowKey] = [];
-      midiaData[flowKey].push({ type, data: e.target.result, caption: '', trigger: 'first_contact' });
-      renderMidiaList(flowKey);
-    };
+    reader.onload = e => doSave(e.target.result);
     reader.readAsDataURL(file);
   }
   event.target.value = '';
 }
 
-function removeMidiaItem(flowKey, index) {
-  midiaData[flowKey].splice(index, 1);
-  renderMidiaList(flowKey);
-}
-
-function saveMidia(flowKey) {
-  const msg = document.getElementById(`midia-save-msg-${flowKey}`);
-  msg.style.color = '#999';
-  msg.textContent = 'Salvando...';
+function patchMidia(flowKey, id, patch) {
+  const item = (midiaData[flowKey]||[]).find(i=>i.id===id);
+  if (item) Object.assign(item, patch);
+  const st = document.getElementById(`midia-st-${id}`);
+  if (st) { st.style.color='#999'; st.textContent='Salvando...'; }
   fetch('/api/media-config', {
-    method: 'POST',
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json', 'x-panel-password': PW },
-    body: JSON.stringify({ flow: flowKey, items: midiaData[flowKey] || [] }),
+    body: JSON.stringify({ flow: flowKey, id, ...patch }),
   })
-  .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
+  .then(r => r.ok ? r.json() : Promise.reject('HTTP '+r.status))
   .then(() => {
-    msg.style.color = '#25d366';
-    msg.textContent = 'Salvo com sucesso';
-    setTimeout(() => msg.textContent = '', 3000);
+    const s = document.getElementById(`midia-st-${id}`);
+    if (s) { s.style.color='#25d366'; s.textContent='Salvo'; setTimeout(()=>s.textContent='',2000); }
   })
   .catch(err => {
-    msg.style.color = '#e55';
-    msg.textContent = 'Erro ao salvar: ' + err;
+    const s = document.getElementById(`midia-st-${id}`);
+    if (s) { s.style.color='#e55'; s.textContent='Erro: '+err; }
+  });
+}
+
+function deleteMidiaItem(flowKey, id) {
+  fetch(`/api/media-config?flow=${flowKey}&id=${id}`, {
+    method: 'DELETE', headers: { 'x-panel-password': PW },
+  }).then(() => {
+    midiaData[flowKey] = (midiaData[flowKey]||[]).filter(i=>i.id!==id);
+    renderMidiaList(flowKey);
   });
 }
 

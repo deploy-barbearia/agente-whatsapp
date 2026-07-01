@@ -86,8 +86,14 @@ async function sendMedia(phone, item) {
 }
 
 async function getFlowMedia(r, flow) {
-  const raw = await r.get(`media:${flow}`);
-  return raw ? JSON.parse(raw) : [];
+  const ids = await r.lrange(`media:${flow}:ids`, 0, -1);
+  const items = [];
+  for (const id of ids) {
+    const meta = await r.get(`media:${flow}:${id}:meta`);
+    const data = await r.get(`media:${flow}:${id}:data`);
+    if (meta && data) items.push({ id, ...JSON.parse(meta), data });
+  }
+  return items;
 }
 
 async function applyLabel(phone, label) {
