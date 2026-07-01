@@ -1,4 +1,7 @@
+import Anthropic from "@anthropic-ai/sdk";
 import Redis from "ioredis";
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 let redis;
 function getRedis() {
@@ -8,49 +11,41 @@ function getRedis() {
 
 const DAY = 24 * 60 * 60 * 1000;
 
-// Templates por fluxo — índice = sequência de follow-up (0 = primeiro, 1 = segundo...)
-const FOLLOW_UPS = {
-  protese: [
-    {
-      afterDays: 1,
-      message:
-        "Você perguntou sobre a prótese capilar aqui na Barbearia do Regis. Pode mandar sua dúvida que te respondo agora.",
-    },
-    {
-      afterDays: 3,
-      message:
-        "A avaliação presencial é gratuita e a gente analisa o seu caso do zero. Qual dia da semana funciona melhor pra você?",
-    },
-    {
-      afterDays: 7,
-      message:
-        "Temos uma vaga disponível essa semana para avaliação de prótese capilar. Se quiser garantir, fala aqui.",
-    },
-  ],
-  clube: [
-    {
-      afterDays: 1,
-      message:
-        "Você perguntou sobre o Clube VIP aqui na barbearia. Qual parte do plano você quer entender melhor?",
-    },
-    {
-      afterDays: 3,
-      message:
-        "As vagas do Clube VIP desse mês estão no limite. Se quiser entrar, é agora que a gente resolve.",
-    },
-    {
-      afterDays: 7,
-      message:
-        "Última vaga disponível no Clube VIP esse mês. Fala aqui se quiser garantir a sua.",
-    },
-  ],
-  organico: [
-    {
-      afterDays: 3,
-      message:
-        "Você entrou em contato com a Barbearia do Regis. Pode mandar sua dúvida ou me dizer o que precisa.",
-    },
-  ],
+// Quantos dias esperar por estágio de follow-up
+const STAGES = {
+  protese:  [1, 3, 7],
+  clube:    [1, 3, 7],
+  organico: [3],
+};
+
+const FOLLOWUP_PROMPT = {
+  protese: `Você é o assistente da Barbearia do Regis. O cliente demonstrou interesse em prótese capilar mas parou de responder.
+Leia o histórico abaixo e escreva UMA mensagem de retomada de conversa.
+Regras:
+- Sem emojis
+- Sem frases de desculpa ou "não quero incomodar"
+- Direto, confiante, como quem tem algo de valor a oferecer
+- Retome pelo ponto exato onde a conversa parou (dúvida não respondida, próximo passo não dado)
+- O objetivo final é marcar a avaliação presencial gratuita
+- Máximo 2 frases`,
+
+  clube: `Você é o assistente da Barbearia do Regis. O cliente demonstrou interesse no Clube VIP mas parou de responder.
+Leia o histórico abaixo e escreva UMA mensagem de retomada de conversa.
+Regras:
+- Sem emojis
+- Sem frases de desculpa ou "não quero incomodar"
+- Direto, confiante, como quem tem algo de valor a oferecer
+- Retome pelo ponto exato onde a conversa parou
+- O objetivo final é fechar a adesão ao plano
+- Máximo 2 frases`,
+
+  organico: `Você é o assistente da Barbearia do Regis. O cliente entrou em contato mas parou de responder.
+Leia o histórico abaixo e escreva UMA mensagem de retomada de conversa.
+Regras:
+- Sem emojis
+- Direto e objetivo
+- Retome pelo ponto exato onde a conversa parou
+- Máximo 2 frases`,
 };
 
 async function sendWhatsApp(phone, text) {
@@ -67,8 +62,23 @@ async function sendWhatsApp(phone, text) {
   );
 }
 
+async function generateFollowUp(flow, history) {
+  const systemPrompt = FOLLOWUP_PROMPT[flow] || FOLLOWUP_PROMPT.organico;
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 200,
+    system: systemPrompt,
+    messages: [
+      {
+        role: "user",
+        content: `Histórico da conversa:\n${history.map(m => `${m.role === "user" ? "Cliente" : "Atendente"}: ${m.content}`).join("\n")}\n\nEscreva a mensagem de retomada.`,
+      },
+    ],
+  });
+  return response.content[0].text.trim();
+}
+
 export default async function handler(req, res) {
-  // Autenticação: Vercel envia Bearer ${CRON_SECRET} automaticamente
   const auth = req.headers["authorization"];
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: "unauthorized" });
@@ -80,40 +90,36 @@ export default async function handler(req, res) {
 
   for (const flow of ["protese", "clube", "organico"]) {
     const phones = await r.smembers(`phones:${flow}`);
-    const templates = FOLLOW_UPS[flow] || [];
+    const stageLimits = STAGES[flow] || [3];
 
     for (const phone of phones) {
       results.checked++;
 
-      // IA OFF ativo → pular
-      if (await r.get(`iaoff:${phone}`)) {
-        results.skipped++;
-        continue;
-      }
+      if (await r.get(`iaoff:${phone}`)) { results.skipped++; continue; }
 
-      // Último timestamp de mensagem real do cliente
       const lastMsgRaw = await r.get(`lastmsg:${phone}`);
       if (!lastMsgRaw) continue;
 
       const daysSince = (now - parseInt(lastMsgRaw)) / DAY;
 
-      // Estágio atual do funil de follow-up (quantos já foram enviados)
       const stageRaw = await r.get(`followup:${phone}`);
       const stage = stageRaw ? parseInt(stageRaw) : 0;
 
-      // Já enviou todos os follow-ups → não incomodar mais
-      if (stage >= templates.length) {
-        results.skipped++;
-        continue;
-      }
+      if (stage >= stageLimits.length) { results.skipped++; continue; }
 
-      const next = templates[stage];
-      if (daysSince >= next.afterDays) {
+      if (daysSince >= stageLimits[stage]) {
         try {
-          await sendWhatsApp(phone, next.message);
+          const histRaw = await r.get(`hist:${phone}`);
+          const history = histRaw ? JSON.parse(histRaw) : [];
+
+          // Sem histórico, sem contexto → pular
+          if (history.length === 0) continue;
+
+          const message = await generateFollowUp(flow, history);
+          await sendWhatsApp(phone, message);
           await r.set(`followup:${phone}`, stage + 1, "EX", 60 * 60 * 24 * 30);
           results.sent++;
-          console.log(`follow-up [${flow}] stage ${stage + 1} → ${phone}`);
+          console.log(`follow-up [${flow}] stage ${stage + 1} → ${phone}: "${message}"`);
         } catch (err) {
           console.error(`follow-up error for ${phone}:`, err.message);
         }
