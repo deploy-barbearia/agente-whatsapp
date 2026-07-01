@@ -59,6 +59,37 @@ async function sendWhatsApp(phone, text) {
   });
 }
 
+async function sendMedia(phone, item) {
+  const base = `${process.env.EVOLUTION_API_URL}`;
+  const inst = process.env.EVOLUTION_INSTANCE;
+  const headers = { "Content-Type": "application/json", apikey: process.env.EVOLUTION_API_KEY };
+
+  if (item.type === "audio") {
+    await fetch(`${base}/message/sendWhatsAppAudio/${inst}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ number: phone, audio: item.data }),
+    });
+  } else {
+    // image or video or document
+    await fetch(`${base}/message/sendMedia/${inst}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        number: phone,
+        mediatype: item.type,
+        media: item.data,
+        caption: item.caption || "",
+      }),
+    });
+  }
+}
+
+async function getFlowMedia(r, flow) {
+  const raw = await r.get(`media:${flow}`);
+  return raw ? JSON.parse(raw) : [];
+}
+
 async function applyLabel(phone, label) {
   try {
     await fetch(`${process.env.EVOLUTION_API_URL}/label/handleLabel/${process.env.EVOLUTION_INSTANCE}`, {
@@ -136,6 +167,8 @@ export default async function handler(req, res) {
       // Etiqueta de entrada no funil
       const labels = FUNNEL_LABELS[flow];
       if (labels?.lead) await applyLabel(phone, labels.lead);
+      // Agendar envio de mídia first_contact após resposta (via flag)
+      await r.set(`sendmedia:first:${phone}`, "1", "EX", 300);
     }
 
     const flow = (await r.get(`fluxo:${phone}`)) || "organico";
@@ -185,6 +218,11 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
       if (!jaInteressou) {
         await applyLabel(phone, FUNNEL_LABELS.protese.interessou);
         await r.set(`label:interessou:${phone}`, "1", "EX", 60 * 60 * 24 * 90);
+        // Enviar mídias configuradas para trigger "on_interest"
+        const mediaItems = await getFlowMedia(r, flow);
+        for (const item of mediaItems.filter(m => m.trigger === "on_interest")) {
+          await sendMedia(phone, item);
+        }
       }
     }
 
@@ -213,6 +251,17 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
     for (let i = 0; i < parts.length; i++) {
       await sendWhatsApp(phone, parts[i]);
       if (i < parts.length - 1) await delay(2000 + parts[i].length * 30);
+    }
+
+    // ── Enviar mídias first_contact após primeira resposta ──
+    const shouldSendFirst = await r.get(`sendmedia:first:${phone}`);
+    if (shouldSendFirst) {
+      await r.del(`sendmedia:first:${phone}`);
+      const mediaItems = await getFlowMedia(r, flow);
+      for (const item of mediaItems.filter(m => m.trigger === "first_contact")) {
+        await delay(1500);
+        await sendMedia(phone, item);
+      }
     }
 
     return res.status(200).json({ ok: true });

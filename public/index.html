@@ -381,6 +381,21 @@
 
     .fu-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
 
+    /* MÍDIA */
+    #page-midia { flex-direction: column; padding: 28px; gap: 20px; overflow-y: auto; }
+    #page-midia h2 { font-size: 18px; font-weight: 700; color: #111; margin-bottom: 4px; }
+    .midia-flow-card { background:#fff; border:1px solid #eee; border-radius:14px; padding:20px; }
+    .midia-flow-title { font-size:14px; font-weight:700; color:#111; margin-bottom:14px; text-transform:uppercase; letter-spacing:.05em; }
+    .midia-item { display:flex; align-items:center; gap:10px; padding:10px; border:1px solid #eee; border-radius:10px; margin-bottom:8px; background:#fafafa; }
+    .midia-thumb { width:48px; height:48px; border-radius:8px; object-fit:cover; background:#e8e8e8; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:20px; }
+    .midia-info { flex:1; min-width:0; }
+    .midia-info input { width:100%; border:none; background:transparent; font-size:13px; color:#111; outline:none; }
+    .midia-info select { border:1px solid #ddd; border-radius:6px; font-size:12px; padding:3px 6px; color:#555; background:#fff; margin-top:4px; }
+    .midia-del { background:none; border:none; color:#bbb; cursor:pointer; font-size:18px; padding:4px; }
+    .midia-del:hover { color:#e55; }
+    .midia-upload-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border:1px dashed #ccc; border-radius:8px; cursor:pointer; font-size:13px; color:#777; background:#fafafa; transition:.15s; }
+    .midia-upload-btn:hover { border-color:#25d366; color:#25d366; }
+
     /* CONEXÃO */
     #page-conn { flex-direction: column; padding: 28px; gap: 24px; overflow-y: auto; }
     #page-conn h2 { font-size: 18px; font-weight: 700; color: #111; margin-bottom: 4px; }
@@ -497,6 +512,10 @@
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         Follow-up
       </button>
+      <button class="nav-btn" id="nb-midia" onclick="go('midia',this)">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        Midia
+      </button>
       <button class="nav-btn" id="nb-conn" onclick="go('conn',this)">
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
         Conexão
@@ -607,6 +626,13 @@
         </div>
       </div>
 
+      <!-- MIDIA -->
+      <div class="page" id="page-midia">
+        <h2>Midia por Fluxo</h2>
+        <p class="pg-desc" style="margin-top:4px;margin-bottom:20px">Adicione fotos, videos ou audios que serao enviados automaticamente em cada fluxo. Escolha quando enviar: no primeiro contato ou quando o cliente demonstrar interesse.</p>
+        <div id="midia-flows" style="display:flex;flex-direction:column;gap:24px"></div>
+      </div>
+
       <!-- CONEXAO -->
       <div class="page" id="page-conn">
         <div style="flex-shrink:0">
@@ -702,7 +728,7 @@ function boot() {
 }
 
 // NAVIGATION
-const PAGE_TITLES = { dash: 'Visao Geral', conv: 'Conversas', prompt: 'Prompt do Agente', followup: 'Follow-up', conn: 'Conexao' };
+const PAGE_TITLES = { dash: 'Visao Geral', conv: 'Conversas', prompt: 'Prompt do Agente', followup: 'Follow-up', midia: 'Midia', conn: 'Conexao' };
 function go(page, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -711,6 +737,7 @@ function go(page, btn) {
   document.getElementById('tb-title').textContent = PAGE_TITLES[page] || page;
   if (page === 'conn') checkConn();
   if (page === 'dash') loadDash();
+  if (page === 'midia') loadMidia();
 }
 
 // CONNECTION STATUS
@@ -1036,6 +1063,109 @@ function loadQR() {
     }).catch(() => {
       frame.innerHTML = '<div class="qr-empty"><div class="qr-empty-text">Erro de rede</div></div>';
     });
+}
+
+// MÍDIA
+const MIDIA_FLOWS = [
+  { key: 'protese', label: 'Protese Capilar' },
+  { key: 'clube',   label: 'Clube VIP' },
+  { key: 'organico',label: 'Organico' },
+];
+const midiaData = {}; // flow → [{type,data,caption,trigger}]
+
+function loadMidia() {
+  const container = document.getElementById('midia-flows');
+  container.innerHTML = '<div style="color:#bbb;font-size:13px">Carregando...</div>';
+  Promise.all(MIDIA_FLOWS.map(f =>
+    fetch(`/api/media-config?flow=${f.key}`, { headers: { 'x-panel-password': PW } })
+      .then(r => r.json())
+      .then(d => { midiaData[f.key] = d.items || []; })
+  )).then(() => renderMidiaFlows());
+}
+
+function renderMidiaFlows() {
+  const container = document.getElementById('midia-flows');
+  container.innerHTML = '';
+  for (const flow of MIDIA_FLOWS) {
+    const items = midiaData[flow.key] || [];
+    const card = document.createElement('div');
+    card.className = 'midia-flow-card';
+    card.innerHTML = `
+      <div class="midia-flow-title">${flow.label}</div>
+      <div id="midia-list-${flow.key}"></div>
+      <label class="midia-upload-btn">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Adicionar imagem / audio
+        <input type="file" accept="image/*,audio/*,video/*" style="display:none" onchange="handleMidiaUpload(event,'${flow.key}')">
+      </label>
+      <button onclick="saveMidia('${flow.key}')" style="margin-left:10px;padding:8px 16px;background:#25d366;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Salvar</button>
+      <span id="midia-save-msg-${flow.key}" style="margin-left:8px;font-size:12px;color:#999"></span>
+    `;
+    container.appendChild(card);
+    renderMidiaList(flow.key);
+  }
+}
+
+function renderMidiaList(flowKey) {
+  const list = document.getElementById(`midia-list-${flowKey}`);
+  if (!list) return;
+  const items = midiaData[flowKey] || [];
+  if (items.length === 0) {
+    list.innerHTML = '<div style="font-size:13px;color:#bbb;margin-bottom:12px">Nenhuma midia configurada.</div>';
+    return;
+  }
+  list.innerHTML = items.map((item, i) => {
+    const icon = item.type === 'audio' ? '🎵' : item.type === 'video' ? '🎬' : '';
+    const thumb = item.type === 'image'
+      ? `<img src="${item.data}" style="width:48px;height:48px;border-radius:8px;object-fit:cover">`
+      : `<div class="midia-thumb">${icon}</div>`;
+    return `
+      <div class="midia-item">
+        ${thumb}
+        <div class="midia-info">
+          <input type="text" placeholder="Legenda (opcional)" value="${esc(item.caption||'')}"
+            oninput="midiaData['${flowKey}'][${i}].caption=this.value">
+          <br>
+          <select onchange="midiaData['${flowKey}'][${i}].trigger=this.value">
+            <option value="first_contact" ${item.trigger==='first_contact'?'selected':''}>Enviar no primeiro contato</option>
+            <option value="on_interest" ${item.trigger==='on_interest'?'selected':''}>Enviar quando demonstrar interesse</option>
+          </select>
+        </div>
+        <button class="midia-del" onclick="removeMidiaItem('${flowKey}',${i})">×</button>
+      </div>`;
+  }).join('');
+}
+
+function handleMidiaUpload(event, flowKey) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const type = file.type.startsWith('audio') ? 'audio' : file.type.startsWith('video') ? 'video' : 'image';
+  const reader = new FileReader();
+  reader.onload = e => {
+    if (!midiaData[flowKey]) midiaData[flowKey] = [];
+    midiaData[flowKey].push({ type, data: e.target.result, caption: '', trigger: 'first_contact' });
+    renderMidiaList(flowKey);
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+}
+
+function removeMidiaItem(flowKey, index) {
+  midiaData[flowKey].splice(index, 1);
+  renderMidiaList(flowKey);
+}
+
+function saveMidia(flowKey) {
+  const msg = document.getElementById(`midia-save-msg-${flowKey}`);
+  msg.textContent = 'Salvando...';
+  fetch('/api/media-config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-panel-password': PW },
+    body: JSON.stringify({ flow: flowKey, items: midiaData[flowKey] || [] }),
+  }).then(r => r.json()).then(() => {
+    msg.textContent = 'Salvo';
+    setTimeout(() => msg.textContent = '', 3000);
+  }).catch(() => { msg.textContent = 'Erro'; });
 }
 
 // UTILS
