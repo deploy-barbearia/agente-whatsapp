@@ -667,6 +667,7 @@ function doLogin() {
         PW = ''; return;
       }
       r.json().then(d => {
+        localStorage.setItem('panel_pw', PW);
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app').style.display = 'block';
         document.getElementById('prompt-textarea').value = d.prompt || '';
@@ -675,6 +676,23 @@ function doLogin() {
     });
 }
 document.getElementById('pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+// Auto-login se tiver senha salva
+(function() {
+  const saved = localStorage.getItem('panel_pw');
+  if (!saved) return;
+  PW = saved;
+  fetch('/api/prompt', { headers: { 'x-panel-password': PW } })
+    .then(r => {
+      if (r.status === 401) { localStorage.removeItem('panel_pw'); PW = ''; return; }
+      r.json().then(d => {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        document.getElementById('prompt-textarea').value = d.prompt || '';
+        boot();
+      });
+    });
+})();
 
 function boot() {
   loadConvs();
