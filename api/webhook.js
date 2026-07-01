@@ -208,7 +208,8 @@ export default async function handler(req, res) {
       const phone = jid.replace("@s.whatsapp.net", "");
       const type  = body?.data?.type || body?.data?.action || "";
 
-      if (phone && label === "ia off") {
+      // Reconhece "ia off" e a etiqueta do auto-escalonamento "IA OFF ✕"
+      if (phone && label.includes("ia off")) {
         if (type === "add") {
           await r.set(`iaoff:${phone}`, "1", "EX", 60 * 60 * 24 * 30);
         } else {
