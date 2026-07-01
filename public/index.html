@@ -576,10 +576,11 @@
         <div class="chat-main">
           <div class="chat-topbar" id="chat-top" style="display:none">
             <div class="avatar" id="chat-avatar"></div>
-            <div>
+            <div style="flex:1">
               <div class="chat-topbar-name" id="chat-name"></div>
-              <div class="chat-topbar-sub">WhatsApp</div>
+              <div class="chat-topbar-sub" id="chat-ia-status">WhatsApp</div>
             </div>
+            <button id="btn-ia-toggle" onclick="toggleIA()" style="padding:6px 14px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:#eee;color:#555">...</button>
           </div>
           <div class="messages" id="messages">
             <div class="chat-empty">Selecione uma conversa</div>
@@ -788,6 +789,34 @@ function renderConvList(list) {
 function filterConvs(q) {
   renderConvList(allConvs.filter(c => c.phone.includes(q.replace(/\D/g,''))));
 }
+function setIABtn(iaoff) {
+  const btn = document.getElementById('btn-ia-toggle');
+  const sub = document.getElementById('chat-ia-status');
+  if (iaoff) {
+    btn.textContent = 'Reativar IA';
+    btn.style.background = '#25d366'; btn.style.color = '#fff';
+    sub.textContent = 'IA desativada para este contato';
+    sub.style.color = '#e55';
+  } else {
+    btn.textContent = 'Pausar IA';
+    btn.style.background = '#f5f5f5'; btn.style.color = '#555';
+    sub.textContent = 'IA ativa';
+    sub.style.color = '#25d366';
+  }
+}
+
+function toggleIA() {
+  if (!curPhone) return;
+  const btn = document.getElementById('btn-ia-toggle');
+  const currentlyOff = btn.textContent === 'Reativar IA';
+  const newState = !currentlyOff;
+  fetch('/api/ia-toggle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-panel-password': PW },
+    body: JSON.stringify({ phone: curPhone, iaoff: newState }),
+  }).then(r => r.json()).then(() => setIABtn(newState));
+}
+
 function openChat(phone, el) {
   curPhone = phone;
   document.querySelectorAll('.conv-row').forEach(e => e.classList.remove('active'));
@@ -796,6 +825,9 @@ function openChat(phone, el) {
   document.getElementById('chat-name').textContent = '+' + phone;
   document.getElementById('chat-avatar').textContent = initials(phone);
   document.getElementById('messages').innerHTML = '<div class="chat-empty">Carregando...</div>';
+  // Verificar status da IA para este contato
+  fetch(`/api/ia-toggle?phone=${phone}`, { headers: { 'x-panel-password': PW } })
+    .then(r => r.json()).then(d => setIABtn(d.iaoff));
   fetch(`/api/history?phone=${phone}`, { headers: { 'x-panel-password': PW } })
     .then(r => r.json())
     .then(d => {
