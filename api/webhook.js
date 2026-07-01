@@ -205,7 +205,16 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
     await r.set(`lastmsg:${phone}`, Date.now(), "EX", 60 * 60 * 24 * 90);
     await r.del(`followup:${phone}`); // cliente respondeu → reset o funil de follow-up
 
-    await sendWhatsApp(phone, reply);
+    // ── Enviar com delay de 30s e split por parágrafo ──
+    const delay = ms => new Promise(res => setTimeout(res, ms));
+    await delay(30000);
+
+    const parts = reply.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+    for (let i = 0; i < parts.length; i++) {
+      await sendWhatsApp(phone, parts[i]);
+      if (i < parts.length - 1) await delay(2000 + parts[i].length * 30);
+    }
+
     return res.status(200).json({ ok: true });
 
   } catch (err) {
