@@ -275,6 +275,48 @@
     .fu-card-sub { font-size: 12px; color: #bbb; margin-top: 2px; }
     .toggle-wrap { display: flex; align-items: center; gap: 8px; }
     .toggle-label { font-size: 13px; color: #999; }
+    .btn-delete-card {
+      border: none; background: none; cursor: pointer;
+      color: #ddd; font-size: 15px; padding: 4px 8px;
+      border-radius: 7px; transition: color 0.15s, background 0.15s;
+      margin-left: 12px;
+    }
+    .btn-delete-card:hover { color: #e53e3e; background: #fff0f0; }
+    .btn-add-flow {
+      display: flex; align-items: center; gap: 8px;
+      border: 1.5px dashed #e0e0e0; background: none;
+      color: #aaa; font-size: 13px; font-weight: 500;
+      padding: 12px 20px; border-radius: 12px; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s; width: 100%;
+      justify-content: center;
+    }
+    .btn-add-flow:hover { border-color: #25d366; color: #25d366; }
+    .fu-add-modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+      display: flex; align-items: center; justify-content: center; z-index: 200;
+    }
+    .fu-add-box {
+      background: #fff; border-radius: 16px; padding: 28px;
+      width: 380px; box-shadow: 0 8px 40px rgba(0,0,0,0.15);
+    }
+    .fu-add-box h3 { font-size: 16px; font-weight: 700; color: #111; margin-bottom: 6px; }
+    .fu-add-box p { font-size: 13px; color: #999; margin-bottom: 20px; }
+    .fu-flow-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+    .fu-flow-option {
+      padding: 12px 16px; border: 1.5px solid #ebebeb; border-radius: 10px;
+      cursor: pointer; transition: border-color 0.15s, background 0.15s;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .fu-flow-option:hover { border-color: #25d366; background: #f0fdf4; }
+    .fu-flow-option.disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+    .fu-flow-option-name { font-size: 14px; font-weight: 600; color: #111; }
+    .fu-flow-option-sub { font-size: 12px; color: #bbb; }
+    .btn-modal-cancel {
+      width: 100%; padding: 11px; border: 1.5px solid #ebebeb;
+      border-radius: 10px; background: none; color: #999;
+      font-size: 14px; font-weight: 500; cursor: pointer;
+    }
+    .btn-modal-cancel:hover { border-color: #ccc; color: #555; }
     .toggle {
       position: relative; width: 40px; height: 22px;
     }
@@ -546,9 +588,18 @@
           <p class="pg-desc" style="margin-top:4px">Configure quando e como o agente retoma conversas paradas. O Claude le o historico e escreve a mensagem com base na instrucao abaixo.</p>
         </div>
 
-        <div id="fu-protese-card" class="fu-card"></div>
-        <div id="fu-clube-card" class="fu-card"></div>
-        <div id="fu-organico-card" class="fu-card"></div>
+        <div id="fu-cards-container"></div>
+        <button class="btn-add-flow" onclick="openAddFlow()">+ Adicionar fluxo</button>
+
+        <!-- Modal adicionar fluxo -->
+        <div class="fu-add-modal" id="fu-add-modal" style="display:none" onclick="if(event.target===this)closeAddFlow()">
+          <div class="fu-add-box">
+            <h3>Adicionar fluxo</h3>
+            <p>Escolha qual fluxo deseja reativar no painel de follow-up.</p>
+            <div class="fu-flow-options" id="fu-flow-options"></div>
+            <button class="btn-modal-cancel" onclick="closeAddFlow()">Cancelar</button>
+          </div>
+        </div>
 
         <div class="fu-actions">
           <button class="btn-primary" onclick="saveFollowup()">Salvar configuracoes</button>
@@ -766,6 +817,20 @@ const FU_FLOWS = {
   organico: { title: 'Organico',          sub: 'Contatos que entraram por conta propria' },
 };
 
+let activeFlows = []; // ordem dos fluxos ativos no painel
+
+function renderAllCards(config) {
+  const container = document.getElementById('fu-cards-container');
+  container.innerHTML = '';
+  activeFlows.forEach(flow => {
+    const div = document.createElement('div');
+    div.className = 'fu-card';
+    div.id = `fu-${flow}-card`;
+    container.appendChild(div);
+    renderFuCard(flow, config[flow] || {});
+  });
+}
+
 function renderFuCard(flow, cfg) {
   const { title, sub } = FU_FLOWS[flow];
   const days = cfg.days || [];
@@ -787,12 +852,15 @@ function renderFuCard(flow, cfg) {
         <div class="fu-card-title">${title}</div>
         <div class="fu-card-sub">${sub}</div>
       </div>
-      <div class="toggle-wrap">
-        <span class="toggle-label">Ativo</span>
-        <label class="toggle">
-          <input type="checkbox" id="fu-${flow}-active" ${active ? 'checked' : ''} />
-          <span class="toggle-slider"></span>
-        </label>
+      <div style="display:flex;align-items:center;gap:4px">
+        <div class="toggle-wrap">
+          <span class="toggle-label">Ativo</span>
+          <label class="toggle">
+            <input type="checkbox" id="fu-${flow}-active" ${active ? 'checked' : ''} />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <button class="btn-delete-card" onclick="deleteFuCard('${flow}')" title="Remover fluxo">&#x2715;</button>
       </div>
     </div>
     <div class="fu-field-label">Tentativas</div>
@@ -801,8 +869,46 @@ function renderFuCard(flow, cfg) {
     <div class="fu-field-label">Instrucao para o Claude</div>
     <textarea class="fu-instruction" id="fu-${flow}-instruction" placeholder="Descreva o objetivo e o tom da mensagem...">${esc(instruction)}</textarea>
   `;
-  // renumerar após render
   renumberStages(flow);
+}
+
+function deleteFuCard(flow) {
+  activeFlows = activeFlows.filter(f => f !== flow);
+  const card = document.getElementById(`fu-${flow}-card`);
+  if (card) card.remove();
+}
+
+function openAddFlow() {
+  const opts = document.getElementById('fu-flow-options');
+  opts.innerHTML = Object.entries(FU_FLOWS).map(([key, { title, sub }]) => {
+    const already = activeFlows.includes(key);
+    return `
+      <div class="fu-flow-option ${already ? 'disabled' : ''}" onclick="${already ? '' : `addFuCard('${key}')`}">
+        <div>
+          <div class="fu-flow-option-name">${title}</div>
+          <div class="fu-flow-option-sub">${sub}</div>
+        </div>
+        ${already ? '<span style="font-size:11px;color:#bbb">Ja adicionado</span>' : ''}
+      </div>
+    `;
+  }).join('');
+  document.getElementById('fu-add-modal').style.display = 'flex';
+}
+
+function closeAddFlow() {
+  document.getElementById('fu-add-modal').style.display = 'none';
+}
+
+function addFuCard(flow) {
+  closeAddFlow();
+  activeFlows.push(flow);
+  const container = document.getElementById('fu-cards-container');
+  const div = document.createElement('div');
+  div.className = 'fu-card';
+  div.id = `fu-${flow}-card`;
+  // inserir antes do botão add-flow
+  container.appendChild(div);
+  renderFuCard(flow, {});
 }
 
 function addFuStage(flow) {
@@ -839,10 +945,14 @@ function loadFollowupConfig() {
     .then(r => r.json())
     .then(d => {
       const c = d.config;
-      Object.keys(FU_FLOWS).forEach(flow => renderFuCard(flow, c[flow] || {}));
+      // ordem salva ou padrão
+      activeFlows = c._order || Object.keys(c).filter(k => k !== '_order' && FU_FLOWS[k]);
+      if (!activeFlows.length) activeFlows = Object.keys(FU_FLOWS);
+      renderAllCards(c);
     })
     .catch(() => {
-      Object.keys(FU_FLOWS).forEach(flow => renderFuCard(flow, {}));
+      activeFlows = Object.keys(FU_FLOWS);
+      renderAllCards({});
     });
 }
 
@@ -850,21 +960,19 @@ function saveFollowup() {
   const btn = document.querySelector('#page-followup .btn-primary');
   const msg = document.getElementById('fu-save-msg');
 
-  const getFlow = (flow) => {
+  const config = { _order: [...activeFlows] };
+  activeFlows.forEach(flow => {
     const days = [];
     document.querySelectorAll(`#fu-${flow}-stages .fu-stage-input`).forEach(inp => {
       const v = parseInt(inp.value);
       if (!isNaN(v) && v > 0) days.push(v);
     });
-    return {
+    config[flow] = {
       active: document.getElementById(`fu-${flow}-active`).checked,
       days,
       instruction: document.getElementById(`fu-${flow}-instruction`).value,
     };
-  };
-
-  const config = {};
-  Object.keys(FU_FLOWS).forEach(flow => config[flow] = getFlow(flow));
+  });
 
   btn.disabled = true; msg.textContent = 'Salvando...'; msg.className = 'save-msg';
   fetch('/api/followup-config', {
