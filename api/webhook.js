@@ -173,7 +173,7 @@ export default async function handler(req, res) {
     if (await r.get(`iaoff:${phone}`)) return res.status(200).json({ ok: true });
 
     // ── DEBOUNCE: acumula mensagens por 8s antes de processar ──
-    const DEBOUNCE_MS = 8000;
+    const DEBOUNCE_MS = 10000;
     await r.rpush(`pending:${phone}`, text);
     await r.expire(`pending:${phone}`, 60);
 
@@ -292,7 +292,7 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
 
     // ── Enviar com delay de 30s e split por parágrafo ──
     const delay = ms => new Promise(res => setTimeout(res, ms));
-    await delay(30000);
+    await delay(20000);
 
     const parts = reply.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
     for (let i = 0; i < parts.length; i++) {
