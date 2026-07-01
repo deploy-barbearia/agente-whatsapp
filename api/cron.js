@@ -14,41 +14,41 @@ const FOLLOW_UPS = {
     {
       afterDays: 1,
       message:
-        "Oi! 👋 Vi que você entrou em contato sobre nossa *prótese capilar*. Ficou com alguma dúvida que eu possa esclarecer? Tenho casos reais de transformação que posso te mostrar 📸",
+        "Você perguntou sobre a prótese capilar aqui na Barbearia do Regis. Pode mandar sua dúvida que te respondo agora.",
     },
     {
       afterDays: 3,
       message:
-        "Olá! Ainda pensando na prótese capilar? 😊 A *avaliação presencial é gratuita e sem nenhum compromisso* — você vem, a gente analisa seu caso pessoalmente e você decide com calma. Que dia ficaria bom pra você?",
+        "A avaliação presencial é gratuita e a gente analisa o seu caso do zero. Qual dia da semana funciona melhor pra você?",
     },
     {
       afterDays: 7,
       message:
-        "Oi! 💈 Não quero te incomodar, mas tenho uma vaga disponível essa semana pra avaliação gratuita de prótese capilar. Se ainda tiver interesse, é só responder aqui! Qualquer dúvida, estou à disposição. 🤝",
+        "Temos uma vaga disponível essa semana para avaliação de prótese capilar. Se quiser garantir, fala aqui.",
     },
   ],
   clube: [
     {
       afterDays: 1,
       message:
-        "Oi! 👋 Vi que você perguntou sobre o nosso *Clube VIP*. Posso te explicar direitinho como funciona e quais os benefícios? É bem vantajoso! 💈",
+        "Você perguntou sobre o Clube VIP aqui na barbearia. Qual parte do plano você quer entender melhor?",
     },
     {
       afterDays: 3,
       message:
-        "Olá! 😊 Ainda pensando no Clube VIP? As vagas desse mês estão quase todas preenchidas. Posso te reservar uma enquanto há tempo? Me conta o que tá travando sua decisão que eu te ajudo!",
+        "As vagas do Clube VIP desse mês estão no limite. Se quiser entrar, é agora que a gente resolve.",
     },
     {
       afterDays: 7,
       message:
-        "Oi! Última mensagem sobre o *Clube VIP*, prometo 😄 Ainda temos uma vaga esse mês. Se quiser garantir a sua, é só falar aqui. Se mudar de ideia depois, sem problema — seja bem-vindo! ✂️",
+        "Última vaga disponível no Clube VIP esse mês. Fala aqui se quiser garantir a sua.",
     },
   ],
   organico: [
     {
       afterDays: 3,
       message:
-        "Oi! 👋 Tudo bem? Precisando de alguma coisa, é só falar. Estou à disposição para tirar dúvidas ou agendar um horário 💈",
+        "Você entrou em contato com a Barbearia do Regis. Pode mandar sua dúvida ou me dizer o que precisa.",
     },
   ],
 };
