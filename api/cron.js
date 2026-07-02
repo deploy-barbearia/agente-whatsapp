@@ -92,6 +92,10 @@ export default async function handler(req, res) {
           const message = await generateFollowUp(flow, history, flowConfig.instruction);
           await sendWhatsApp(phone, message);
           await r.set(`followup:${phone}`, stage + 1, "EX", 60 * 60 * 24 * 30);
+
+          // Salva a mensagem do follow-up no histórico para o agente ter contexto
+          history.push({ role: "assistant", content: message });
+          await r.set(`hist:${phone}`, JSON.stringify(history), "EX", 60 * 60 * 24 * 90);
           results.sent++;
 
           // Registra log do follow-up enviado
