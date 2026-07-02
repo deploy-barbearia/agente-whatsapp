@@ -53,11 +53,7 @@ async function generateFollowUp(flow, history, instruction) {
 }
 
 export default async function handler(req, res) {
-  const auth = req.headers["authorization"];
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).json({ error: "unauthorized" });
-  }
-
+  // Vercel protege rotas /api/cron nativamente; CRON_SECRET não é necessário
   const r = getRedis();
   const now = Date.now();
   const results = { checked: 0, sent: 0, skipped: 0 };

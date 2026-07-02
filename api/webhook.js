@@ -390,6 +390,20 @@ export default async function handler(req, res) {
     const hist = await r0.get(`hist:${phone}`);
     return res.status(200).json({ ok: true, phone, flow, daysAgo, hasHistory: !!hist, histLen: hist ? JSON.parse(hist).length : 0 });
   }
+  // Disparo manual do cron via debug endpoint
+  if (req.method === "POST" && req.query?.debug === "wh2025" && req.body?.runCron) {
+    const cronHandler = (await import("./cron.js")).default;
+    // Simula req/res do Vercel para o cron
+    const fakeReq = { headers: {}, method: "GET" };
+    let cronResult;
+    const fakeRes = {
+      status: () => fakeRes,
+      json: (data) => { cronResult = data; },
+    };
+    await cronHandler(fakeReq, fakeRes);
+    return res.status(200).json({ ok: true, cron: cronResult });
+  }
+
   if (req.method !== "POST") return res.status(200).json({ ok: true });
 
   try {
