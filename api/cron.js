@@ -13,7 +13,7 @@ const DAY = 24 * 60 * 60 * 1000;
 
 const DEFAULT_CONFIG = {
   protese:  { active: true, days: [1, 3, 7], instruction: "Objetivo: retomar a conversa de forma natural, com base no que foi dito, e conduzir para o agendamento de uma avaliação presencial gratuita. Sem emojis. Direto. Máximo 2 frases." },
-  clube:    { active: true, days: [1, 3, 7], instruction: "Objetivo: retomar a conversa com base no contexto e fechar a adesão ao plano do Clube VIP. Sem emojis. Direto. Máximo 2 frases." },
+  clube:    { active: true, days: [1, 3, 7], instruction: "Objetivo: retomar a conversa e criar movimento em direção ao fechamento. Mencione um benefício concreto do plano e termine com uma pergunta direta ou proposta de próximo passo — nunca devolva o controle ao cliente com frases como 'quando quiser é só falar'. Sem emojis. Máximo 3 frases." },
   organico: { active: true, days: [3],       instruction: "Objetivo: retomar a conversa de forma simples e verificar se o cliente ainda precisa de algo. Sem emojis. Direto. Máximo 2 frases." },
 };
 
