@@ -658,20 +658,15 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
     await r.set(`lastmsg:${phone}`, Date.now(), "EX", 60 * 60 * 24 * 90);
     await r.del(`followup:${phone}`); // cliente respondeu → reset o funil de follow-up
 
-    // ── Enviar com delay de 30s e split por parágrafo ──
+    // ── Enviar mensagem única com delay e typing ──
     const delay = ms => new Promise(res => setTimeout(res, ms));
-    // Delay proporcional ao tamanho da resposta: 5s (texto curto) a 10s (texto longo)
+    // Delay proporcional ao tamanho da resposta: 5s (curto) a 10s (longo)
     await delay(Math.min(5000 + reply.length * 20, 10000));
-
-    const parts = reply.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
-    for (let i = 0; i < parts.length; i++) {
-      const typingMs = Math.min(1500 + parts[i].length * 40, 6000);
-      await setPresence(sendTo, "composing");
-      await delay(typingMs);
-      await sendWhatsApp(sendTo, parts[i]);
-      await setPresence(sendTo, "paused");
-      if (i < parts.length - 1) await delay(1500);
-    }
+    const typingMs = Math.min(1500 + reply.length * 40, 6000);
+    await setPresence(sendTo, "composing");
+    await delay(typingMs);
+    await sendWhatsApp(sendTo, reply.trim());
+    await setPresence(sendTo, "paused");
 
     // ── Enviar mídias first_contact após primeira resposta ──
     const shouldSendFirst = await r.get(`sendmedia:first:${phone}`);
