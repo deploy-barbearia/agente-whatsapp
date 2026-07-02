@@ -381,8 +381,12 @@ export default async function handler(req, res) {
     const fakeLastMsg = Date.now() - daysAgo * 24 * 60 * 60 * 1000;
     await r0.set(`lastmsg:${phone}`, fakeLastMsg, "EX", 60 * 60 * 24 * 90);
     await r0.sadd(`phones:${flow}`, phone);
+    await r0.set(`fluxo:${phone}`, flow, "EX", 60 * 60 * 24 * 90);
     await r0.del(`followup:${phone}`); // reset etapa
-    // Verifica o histórico existente
+    // Injeta histórico fictício se fornecido
+    if (req.body.history && Array.isArray(req.body.history)) {
+      await r0.set(`hist:${phone}`, JSON.stringify(req.body.history), "EX", 60 * 60 * 24 * 90);
+    }
     const hist = await r0.get(`hist:${phone}`);
     return res.status(200).json({ ok: true, phone, flow, daysAgo, hasHistory: !!hist, histLen: hist ? JSON.parse(hist).length : 0 });
   }
