@@ -255,6 +255,22 @@
     #prompt-textarea:focus { border-color: #25d366; }
     .prompt-bar { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
 
+    /* FOLLOW-UP LOG */
+    .fu-log-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .fu-log-table th { text-align: left; font-size: 11px; font-weight: 700; color: #bbb; text-transform: uppercase; letter-spacing: 0.6px; padding: 0 12px 8px; border-bottom: 1px solid #f0f0f0; }
+    .fu-log-table td { padding: 12px; border-bottom: 1px solid #f8f8f8; vertical-align: top; }
+    .fu-log-table tr:last-child td { border-bottom: none; }
+    .fu-log-table tr:hover td { background: #fafafa; }
+    .fu-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .fu-badge-protese { background: #f0f7ff; color: #2563eb; }
+    .fu-badge-clube { background: #f0fdf4; color: #16a34a; }
+    .fu-badge-organico { background: #fff7ed; color: #ea580c; }
+    .fu-log-msg { color: #444; line-height: 1.4; max-width: 320px; }
+    .fu-log-phone { font-family: monospace; color: #777; }
+    .fu-log-time { color: #bbb; white-space: nowrap; }
+    .fu-log-stage { font-weight: 600; color: #555; }
+    .fu-log-empty { text-align: center; padding: 32px; color: #bbb; font-size: 13px; }
+
     /* FOLLOW-UP */
     #page-followup { flex-direction: column; padding: 28px; gap: 20px; overflow-y: auto; }
     #page-followup h2 { font-size: 18px; font-weight: 700; color: #111; margin-bottom: 4px; }
@@ -625,6 +641,20 @@
           <button class="btn-primary" onclick="saveFollowup()">Salvar configuracoes</button>
           <span class="save-msg" id="fu-save-msg"></span>
         </div>
+
+        <!-- LOG DE DISPAROS -->
+        <div style="margin-top:32px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div>
+              <div style="font-size:15px;font-weight:700;color:#111">Historico de disparos</div>
+              <div style="font-size:13px;color:#999;margin-top:2px">Ultimos follow-ups enviados automaticamente pelo agente</div>
+            </div>
+            <button onclick="loadFollowupLogs()" style="font-size:12px;padding:6px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;color:#555">Atualizar</button>
+          </div>
+          <div id="fu-log-container">
+            <div style="color:#bbb;font-size:13px;text-align:center;padding:24px 0">Carregando...</div>
+          </div>
+        </div>
       </div>
 
       <!-- MIDIA -->
@@ -739,6 +769,7 @@ function go(page, btn) {
   if (page === 'conn') checkConn();
   if (page === 'dash') loadDash();
   if (page === 'midia') loadMidia();
+  if (page === 'followup') { loadFollowupConfig(); loadFollowupLogs(); }
 }
 
 // CONNECTION STATUS
@@ -1015,6 +1046,47 @@ function renumberStages(flow) {
   document.querySelectorAll(`#fu-${flow}-stages .fu-stage-row`).forEach((row, i) => {
     row.querySelector('.fu-stage-num').textContent = i + 1;
   });
+}
+
+function loadFollowupLogs() {
+  const el = document.getElementById('fu-log-container');
+  el.innerHTML = '<div style="color:#bbb;font-size:13px;text-align:center;padding:24px 0">Carregando...</div>';
+  fetch('/api/webhook?debug=wh2025', { headers: { 'x-panel-password': PW } })
+    .then(r => r.json())
+    .then(d => {
+      const logs = d.followupLogs || [];
+      if (!logs.length) {
+        el.innerHTML = '<div class="fu-log-empty">Nenhum follow-up disparado ainda.</div>';
+        return;
+      }
+      const FLOW_LABEL = { protese: 'Protese', clube: 'Clube', organico: 'Organico' };
+      const rows = logs.map(log => {
+        const dt = new Date(log.ts);
+        const dateStr = dt.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' });
+        const timeStr = dt.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+        const phone = String(log.phone || '').replace(/^55/, '').replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+        const badgeClass = `fu-badge fu-badge-${log.flow || 'organico'}`;
+        const flowLabel = FLOW_LABEL[log.flow] || log.flow || '—';
+        const days = log.daysSince != null ? `${log.daysSince}d sem resposta` : '';
+        return `<tr>
+          <td class="fu-log-time">${dateStr}<br><span style="color:#ddd">${timeStr}</span></td>
+          <td class="fu-log-phone">${phone}</td>
+          <td><span class="${badgeClass}">${flowLabel}</span></td>
+          <td class="fu-log-stage">Etapa ${log.stage || 1}</td>
+          <td class="fu-log-msg">${log.message || '—'}</td>
+          <td style="color:#bbb;font-size:12px;white-space:nowrap">${days}</td>
+        </tr>`;
+      }).join('');
+      el.innerHTML = `<table class="fu-log-table">
+        <thead><tr>
+          <th>Data</th><th>Contato</th><th>Fluxo</th><th>Etapa</th><th>Mensagem enviada</th><th>Contexto</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    })
+    .catch(() => {
+      el.innerHTML = '<div class="fu-log-empty">Erro ao carregar logs.</div>';
+    });
 }
 
 function loadFollowupConfig() {

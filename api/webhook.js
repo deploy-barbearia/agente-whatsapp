@@ -106,14 +106,156 @@ async function getFlowMedia(r, flow) {
   return items;
 }
 
-async function applyLabel(phone, label) {
+// Busca o ID interno do label pelo nome (com cache Redis 1h)
+async function getLabelId(labelName) {
+  const r = getRedis();
+  const cacheKey = `labelid:${labelName}`;
+  const cached = await r.get(cacheKey);
+  if (cached) return cached;
   try {
+    const resp = await fetch(
+      `${process.env.EVOLUTION_API_URL}/label/findLabels/${process.env.EVOLUTION_INSTANCE}`,
+      { headers: { apikey: process.env.EVOLUTION_API_KEY } }
+    );
+    const data = await resp.json();
+    const list = Array.isArray(data) ? data : (data?.labels || []);
+    for (const lbl of list) {
+      const id = lbl.id || lbl.labelId;
+      const name = lbl.name || lbl.label || "";
+      if (id) await r.set(`labelid:${name}`, id, "EX", 3600);
+    }
+    const found = list.find(l => (l.name || l.label || "") === labelName);
+    return found ? (found.id || found.labelId) : null;
+  } catch { return null; }
+}
+
+async function applyLabel(phone, labelName) {
+  // 1. Evolution API (com lookup de ID para maior compatibilidade)
+  try {
+    const labelId = await getLabelId(labelName);
+    const body = labelId
+      ? { number: phone, labelId, action: "add" }
+      : { number: phone, label: labelName, action: "add" };
     await fetch(`${process.env.EVOLUTION_API_URL}/label/handleLabel/${process.env.EVOLUTION_INSTANCE}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: process.env.EVOLUTION_API_KEY },
-      body: JSON.stringify({ number: phone, label, action: "add" }),
+      body: JSON.stringify(body),
     });
   } catch {}
+
+  // 2. Wascript (WhatsApp Web direto — garante que aparece no Waseller)
+  if (process.env.WASCRIPT_TOKEN) {
+    try {
+      const listResp = await fetch(
+        `https://api-whatsapp.wascript.com.br/api/listar-etiquetas/${process.env.WASCRIPT_TOKEN}`
+      );
+      const listData = await listResp.json();
+      const found = (listData.etiquetas || []).find(e =>
+        (e.name || "").toLowerCase().includes(labelName.toLowerCase().replace(" ✕", ""))
+      );
+      if (found?.id) {
+        await fetch(
+          `https://api-whatsapp.wascript.com.br/api/modificar-etiquetas/${process.env.WASCRIPT_TOKEN}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone, actions: [{ labelId: found.id, type: "add" }] }),
+          }
+        );
+      }
+    } catch {}
+  }
+}
+
+// ── MÍDIA: download + transcrição ─────────────────────────────────────────
+
+async function downloadMedia(msg) {
+  try {
+    const resp = await fetch(
+      `${process.env.EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${process.env.EVOLUTION_INSTANCE}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: process.env.EVOLUTION_API_KEY },
+        body: JSON.stringify({ message: { key: msg.key, message: msg.message } }),
+      }
+    );
+    if (!resp.ok) return null;
+    return await resp.json(); // { base64, mimetype, ... }
+  } catch {
+    return null;
+  }
+}
+
+// Transcreve áudio usando Groq Whisper (precisa de GROQ_API_KEY no Vercel)
+async function transcribeAudio(base64, mimetype) {
+  if (!process.env.GROQ_API_KEY) return null;
+  try {
+    const buffer = Buffer.from(base64, "base64");
+    const ext = (mimetype || "").includes("mp4") ? "mp4" : "ogg";
+    const blob = new Blob([buffer], { type: mimetype || "audio/ogg; codecs=opus" });
+    const formData = new FormData();
+    formData.append("file", blob, `audio.${ext}`);
+    formData.append("model", "whisper-large-v3-turbo");
+    formData.append("language", "pt");
+    formData.append("response_format", "text");
+
+    const resp = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+      body: formData,
+    });
+    if (!resp.ok) return null;
+    return (await resp.text()).trim();
+  } catch {
+    return null;
+  }
+}
+
+// Verifica via Evolution API se o label "IA OFF" ainda está no chat do contato.
+// Chamado quando iaoff:{phone} existe no Redis mas o agente recebeu nova mensagem —
+// detecta remoção do label feita pelo Waseller (que não dispara webhook labels.edit).
+async function hasIAOffLabelOnChat(phone) {
+  try {
+    const jid = `${phone}@s.whatsapp.net`;
+
+    // 1. Busca os labels cadastrados para encontrar o ID do "IA OFF"
+    const labelsResp = await fetch(
+      `${process.env.EVOLUTION_API_URL}/label/findLabels/${process.env.EVOLUTION_INSTANCE}`,
+      { headers: { apikey: process.env.EVOLUTION_API_KEY } }
+    );
+    if (!labelsResp.ok) return true; // erro → assume ainda iaoff (seguro)
+    const labelsData = await labelsResp.json();
+    const labelList = Array.isArray(labelsData) ? labelsData : (labelsData?.labels || []);
+    const iaOffIds = labelList
+      .filter(l => (l.name || l.label || "").toLowerCase().includes("ia off"))
+      .map(l => l.id || l.labelId || l.name);
+
+    // 2. Busca os dados do chat do contato
+    const chatResp = await fetch(
+      `${process.env.EVOLUTION_API_URL}/chat/findChats/${process.env.EVOLUTION_INSTANCE}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: process.env.EVOLUTION_API_KEY },
+        body: JSON.stringify({ where: { id: jid } }),
+      }
+    );
+    if (!chatResp.ok) return true;
+    const chatData = await chatResp.json();
+    const chats = Array.isArray(chatData) ? chatData : (chatData?.chats || [chatData]);
+    const chat = chats.find(c => c.id === jid || c.remoteJid === jid);
+    if (!chat) return true; // chat não encontrado → assume ainda iaoff
+
+    const chatLabels = chat.labels || [];
+
+    // Checa por ID ou por nome direto (depende da versão do Evolution API)
+    return chatLabels.some(l => {
+      const name = (typeof l === "string" ? l : l?.name || l?.id || "").toLowerCase();
+      if (name.includes("ia off")) return true;
+      return iaOffIds.includes(typeof l === "string" ? l : l?.id);
+    });
+  } catch {
+    return true; // erro → assume ainda iaoff (seguro: não responde por engano)
+  }
 }
 
 // Etiquetas do funil por fluxo
@@ -194,26 +336,118 @@ async function notifyEscalation(phone, clientText) {
 
 // ── HANDLER ───────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
+  // CORS — necessário para Waseller (executa webhook via browser)
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") return res.status(200).end();
+
+  // Rota de diagnóstico temporária
+  if (req.method === "GET" && req.query?.debug === "wh2025") {
+    const r0 = getRedis();
+    // ?cleariaoff=phone → limpa iaoff de um contato específico
+    if (req.query.cleariaoff) {
+      await r0.del(`iaoff:${req.query.cleariaoff}`);
+      return res.status(200).json({ cleared: req.query.cleariaoff });
+    }
+    const [webhookLogs, wasellerLogs, iaoffKeys, lockKeys, pendingKeys, prompt, followupLogs] = await Promise.all([
+      r0.lrange("debug:webhook", 0, 9),
+      r0.lrange("debug:waseller", 0, 19),
+      r0.keys("iaoff:*"),
+      r0.keys("lock:*"),
+      r0.keys("pending:*"),
+      r0.get("prompt:system"),
+      r0.lrange("log:followups", 0, 99),
+    ]);
+    return res.status(200).json({
+      webhookLogs: webhookLogs.map(i => { try { return JSON.parse(i); } catch { return i; } }),
+      wasellerLogs: wasellerLogs.map(i => { try { return JSON.parse(i); } catch { return i; } }),
+      followupLogs: followupLogs.map(i => { try { return JSON.parse(i); } catch { return i; } }),
+      iaoffKeys, lockKeys, pendingKeys, prompt
+    });
+  }
+  // Rota de escrita temporária de prompt via debug
+  if (req.method === "POST" && req.query?.debug === "wh2025" && req.body?.setPrompt) {
+    const r0 = getRedis();
+    await r0.set("prompt:system", req.body.setPrompt);
+    return res.status(200).json({ ok: true, length: req.body.setPrompt.length });
+  }
   if (req.method !== "POST") return res.status(200).json({ ok: true });
 
   try {
     const body = req.body;
-    const event = body?.event;
+    // Normaliza event para lowercase com ponto: "LABELS_ASSOCIATION" → "labels.association"
+    const rawEvent = body?.event || "";
+    const event = rawEvent.toLowerCase().replace(/_/g, ".");
 
-    // ── Evento de etiqueta (IA OFF manual pela equipe) ──
-    if (event === "labels.edit") {
+    // Salva últimos payloads não-mensagem no Redis para diagnóstico
+    if (!event || event !== "messages.upsert") {
+      const r0 = getRedis();
+      const entry = JSON.stringify({ ts: Date.now(), rawEvent, event, body: body }).slice(0, 800);
+      await r0.lpush("debug:webhook", entry);
+      await r0.ltrim("debug:webhook", 0, 9);
+      console.log(`[incoming] ${entry.slice(0, 300)}`);
+    }
+
+    // ── Webhook do Waseller (etiqueta adicionada/removida manualmente pela equipe) ──
+    // URL configurada no Waseller: /api/webhook?source=waseller
+    if (req.query?.source === "waseller" || body?.eventID === "labels") {
       const r = getRedis();
-      const label = (body?.data?.label?.name || "").toLowerCase().trim();
-      const jid   = body?.data?.id?.remote || body?.data?.remoteJid || "";
-      const phone = jid.replace("@s.whatsapp.net", "");
-      const type  = body?.data?.type || body?.data?.action || "";
+      await r.lpush("debug:waseller", JSON.stringify({ ts: Date.now(), method: req.method, query: req.query, body }));
+      await r.ltrim("debug:waseller", 0, 19);
 
-      // Reconhece "ia off" e a etiqueta do auto-escalonamento "IA OFF ✕"
-      if (phone && label.includes("ia off")) {
+      // Payload real do Waseller:
+      // body.number = "554197345230@c.us"
+      // body.eventDetails.type = "add" | "remove"
+      // body.eventDetails.labels = [{ id: "10", name: "IA OFF ❌" }]
+      const phone = String(body?.number || body?.numero || "").replace(/@\S+/g, "").replace(/\D/g, "");
+      const type = body?.eventDetails?.type || "";
+      const labels = body?.eventDetails?.labels || [];
+      const isIaOff = labels.some(l => String(l.id) === "10" || String(l.name || "").toLowerCase().includes("ia off"));
+
+      console.log(`[waseller] phone=${phone} type=${type} isIaOff=${isIaOff}`);
+
+      if (phone && isIaOff) {
         if (type === "add") {
           await r.set(`iaoff:${phone}`, "1", "EX", 60 * 60 * 24 * 30);
-        } else {
+          console.log(`[waseller] IA OFF ativado para ${phone}`);
+        } else if (type === "remove") {
           await r.del(`iaoff:${phone}`);
+          console.log(`[waseller] IA OFF removido para ${phone}`);
+        }
+      }
+      return res.status(200).json({ ok: true });
+    }
+
+    // Log de eventos não-mensagem para diagnóstico
+    if (event && event !== "messages.upsert") {
+      console.log(`[webhook-event] event=${event} data=${JSON.stringify(body?.data).slice(0, 500)}`);
+    }
+
+    // ── Evento de etiqueta da Evolution API (labels.association / labels.edit) ──
+    // Payload real: { event, data: { instance, type, chatId, labelId } }
+    if (event === "labels.association" || event === "labels.edit") {
+      const r = getRedis();
+      const d = body?.data || {};
+
+      // Campos estão direto em d (não aninhados)
+      const labelId = String(d.labelId || d.id || "");
+      const chatId  = d.chatId || d.remoteJid || d.id?.remote || "";
+      const type    = d.type || d.action || "";
+
+      // Extrai chave de identificação: remove sufixos @s.whatsapp.net, @c.us, @lid
+      const contactKey = chatId.replace(/@s\.whatsapp\.net|@c\.us|@lid/g, "");
+
+      console.log(`[label-event] labelId=${labelId} chatId=${chatId} type=${type}`);
+
+      // labelId "10" = IA OFF ❌ (confirmado via findLabels)
+      if (contactKey && labelId === "10") {
+        if (type === "add") {
+          await r.set(`iaoff:${contactKey}`, "1", "EX", 60 * 60 * 24 * 30);
+          console.log(`[label-event] IA OFF ativado para ${contactKey}`);
+        } else if (type === "remove") {
+          await r.del(`iaoff:${contactKey}`);
+          console.log(`[label-event] IA OFF removido para ${contactKey}`);
         }
       }
       return res.status(200).json({ ok: true });
@@ -227,13 +461,55 @@ export default async function handler(req, res) {
     const remoteJid = msg.key?.remoteJid || "";
     if (remoteJid.includes("@g.us")) return res.status(200).json({ ok: true });
 
-    const phone = remoteJid.replace("@s.whatsapp.net", "");
-    const text  = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
+    // Extrai identificador numérico (sem sufixo) — usado como chave no Redis
+    const phone = remoteJid.replace(/@s\.whatsapp\.net|@c\.us|@lid/g, "");
+    // Preserva o JID original para enviar a resposta corretamente (Evolution API aceita @lid)
+    const sendTo = remoteJid.includes("@lid") ? remoteJid : phone;
+
+    // ── Extrair conteúdo: texto, áudio ou imagem ──
+    let text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
+
+    const msgType = Object.keys(msg.message || {}).find(k =>
+      ["audioMessage", "pttMessage", "imageMessage"].includes(k)
+    );
+
+    if (!text && (msgType === "audioMessage" || msgType === "pttMessage")) {
+      const media = await downloadMedia(msg);
+      if (media?.base64) {
+        const transcription = await transcribeAudio(media.base64, media.mimetype);
+        if (transcription) {
+          text = transcription; // trata o áudio transcrito como texto normal
+        }
+        // sem transcrição disponível → ignora (não responde a áudio sem GROQ_API_KEY)
+      }
+    }
+
+    if (!text && msgType === "imageMessage") {
+      const caption = msg.message.imageMessage?.caption || "";
+      const media = await downloadMedia(msg);
+      if (media?.base64) {
+        const r2 = getRedis();
+        // Guarda a imagem temporariamente para o Claude ver nesta rodada
+        await r2.set(`img:${phone}`, JSON.stringify({ base64: media.base64, mimetype: media.mimetype || "image/jpeg" }), "EX", 120);
+        text = caption || "[imagem]";
+      }
+    }
+
     if (!text) return res.status(200).json({ ok: true });
 
     const r = getRedis();
 
-    // ── IA OFF: ignorar este cliente ──
+    // ── RESET DE CONVERSA (deve rodar ANTES do iaoff check) ──
+    if (text.trim().toLowerCase().includes("reset") && text.includes("❌")) {
+      await r.del(`hist:${phone}`);
+      await r.del(`pending:${phone}`);
+      await r.del(`lock:${phone}`);
+      await r.del(`iaoff:${phone}`);
+      await sendWhatsApp(sendTo, "Conversa resetada. Pode começar o teste!");
+      return res.status(200).json({ ok: true });
+    }
+
+    // ── IA OFF: Redis é a fonte de verdade ──
     if (await r.get(`iaoff:${phone}`)) return res.status(200).json({ ok: true });
 
     // ── DEBOUNCE: acumula mensagens por 8s antes de processar ──
@@ -295,7 +571,11 @@ export default async function handler(req, res) {
 
     // ── Montar prompt com contexto de fluxo ──
     const systemPrompt = await getPrompt();
+    const horaBrasilia = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hour12: false });
     const fullPrompt   = `${systemPrompt}
+
+---
+HORÁRIO ATUAL EM BRASÍLIA: ${horaBrasilia}. Use este horário para definir a saudação correta: 05h-11h59 = "Bom dia", 12h-17h59 = "Boa tarde", 18h-04h59 = "Boa noite". NUNCA use saudação diferente do horário atual.
 
 ---
 ${FLOW_CONTEXT[flow] || FLOW_CONTEXT.organico}
@@ -305,13 +585,32 @@ Quando o cliente demonstrar interesse claro em avançar (quer saber mais, pergun
 Quando o cliente confirmar ou combinar uma avaliação presencial, adicione a tag [AGENDOU].
 As tags são invisíveis para o cliente — use apenas quando realmente aplicável.`;
 
-    history.push({ role: "user", content: combinedText });
+    // ── Montar conteúdo do usuário (visão se houver imagem pendente) ──
+    const imgRaw = await r.get(`img:${phone}`);
+    let userContent;
+    if (imgRaw) {
+      await r.del(`img:${phone}`);
+      const img = JSON.parse(imgRaw);
+      userContent = [
+        { type: "image", source: { type: "base64", media_type: img.mimetype, data: img.base64 } },
+        { type: "text", text: combinedText },
+      ];
+    } else {
+      userContent = combinedText;
+    }
+
+    // Para o histórico, salva só texto (sem base64 para não estourar Redis)
+    const histText = typeof userContent === "string"
+      ? userContent
+      : (userContent.find(c => c.type === "text")?.text || "[imagem]");
+
+    history.push({ role: "user", content: histText });
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 1024,
       system: fullPrompt,
-      messages: history,
+      messages: [...history.slice(0, -1), { role: "user", content: userContent }],
     });
 
     let reply = response.content[0].text;
@@ -320,7 +619,11 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
     if (reply.includes("[ESCALAR]")) {
       reply = reply.replace("[ESCALAR]", "").trim();
       await r.set(`iaoff:${phone}`, "1", "EX", 60 * 60 * 24 * 30);
-      await applyLabel(phone, "IA OFF ✕");
+      // Marca como verificado recentemente para evitar race condition: se o cliente
+      // mandar outra mensagem antes do label ser aplicado no WhatsApp, o cache
+      // garante que o bot já sabe que está iaoff e não responde.
+      await r.set(`iaoff:checked:${phone}`, "1", "EX", 300);
+      await applyLabel(phone, "IA OFF ❌");
       await notifyEscalation(phone, combinedText); // avisa humano(s) ativamente
     }
 
@@ -333,7 +636,7 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
         // Enviar mídias configuradas para trigger "on_interest"
         const mediaItems = await getFlowMedia(r, flow);
         for (const item of mediaItems.filter(m => m.trigger === "on_interest")) {
-          await sendMedia(phone, item);
+          await sendMedia(sendTo, item);
         }
       }
     }
@@ -357,15 +660,16 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
 
     // ── Enviar com delay de 30s e split por parágrafo ──
     const delay = ms => new Promise(res => setTimeout(res, ms));
-    await delay(20000);
+    // Delay proporcional ao tamanho da resposta: 5s (texto curto) a 10s (texto longo)
+    await delay(Math.min(5000 + reply.length * 20, 10000));
 
     const parts = reply.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
     for (let i = 0; i < parts.length; i++) {
       const typingMs = Math.min(1500 + parts[i].length * 40, 6000);
-      await setPresence(phone, "composing");
+      await setPresence(sendTo, "composing");
       await delay(typingMs);
-      await sendWhatsApp(phone, parts[i]);
-      await setPresence(phone, "paused");
+      await sendWhatsApp(sendTo, parts[i]);
+      await setPresence(sendTo, "paused");
       if (i < parts.length - 1) await delay(1500);
     }
 
@@ -376,7 +680,7 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
       const mediaItems = await getFlowMedia(r, flow);
       for (const item of mediaItems.filter(m => m.trigger === "first_contact")) {
         await delay(1500);
-        await sendMedia(phone, item);
+        await sendMedia(sendTo, item);
       }
     }
 
@@ -387,7 +691,7 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
       const mediaItems = await getFlowMedia(r, flow);
       for (const item of mediaItems.filter(m => m.trigger === "second_message")) {
         await delay(1500);
-        await sendMedia(phone, item);
+        await sendMedia(sendTo, item);
       }
     }
 

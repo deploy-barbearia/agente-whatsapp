@@ -97,6 +97,19 @@ export default async function handler(req, res) {
           await sendWhatsApp(phone, message);
           await r.set(`followup:${phone}`, stage + 1, "EX", 60 * 60 * 24 * 30);
           results.sent++;
+
+          // Registra log do follow-up enviado
+          const logEntry = JSON.stringify({
+            ts: now,
+            phone,
+            flow,
+            stage: stage + 1,
+            message,
+            daysSince: Math.round(daysSince * 10) / 10,
+          });
+          await r.lpush("log:followups", logEntry);
+          await r.ltrim("log:followups", 0, 199); // mantém últimos 200
+
           console.log(`follow-up [${flow}] stage ${stage + 1} → ${phone}: "${message}"`);
         } catch (err) {
           console.error(`follow-up error for ${phone}:`, err.message);
