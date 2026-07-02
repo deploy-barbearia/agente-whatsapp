@@ -602,10 +602,20 @@ export default async function handler(req, res) {
     // ── Montar prompt com contexto de fluxo ──
     const systemPrompt = await getPrompt();
     const horaBrasilia = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hour12: false });
+    const horaBrasiliaH = parseInt(horaBrasilia.split(":")[0]);
+    const saudacao = horaBrasiliaH >= 5 && horaBrasiliaH < 12 ? "Bom dia" : horaBrasiliaH >= 12 && horaBrasiliaH < 18 ? "Boa tarde" : "Boa noite";
+
+    // Verifica se já saudou este cliente hoje (chave expira à meia-noite de Brasília)
+    const greetKey = `greeted:${phone}:${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }).replace(/\//g, "-")}`;
+    const jaGreetedHoje = await r.exists(greetKey);
+    const greetInstrucao = jaGreetedHoje
+      ? "JÁ FOI FEITA A SAUDAÇÃO com este cliente hoje — NÃO repita saudação (não use Bom dia/Boa tarde/Boa noite). Vá direto ao assunto."
+      : `PRIMEIRA MENSAGEM DO DIA para este cliente — use a saudação "${saudacao}" no início da resposta. Após enviar esta mensagem, a saudação do dia está feita.`;
+
     const fullPrompt   = `${systemPrompt}
 
 ---
-HORÁRIO ATUAL EM BRASÍLIA: ${horaBrasilia}. Use este horário para definir a saudação correta: 05h-11h59 = "Bom dia", 12h-17h59 = "Boa tarde", 18h-04h59 = "Boa noite". NUNCA use saudação diferente do horário atual.
+HORÁRIO ATUAL EM BRASÍLIA: ${horaBrasilia}. ${greetInstrucao}
 
 ---
 ${FLOW_CONTEXT[flow] || FLOW_CONTEXT.organico}
@@ -687,6 +697,9 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
     // ── Timestamp de última mensagem real (para follow-up) ──
     await r.set(`lastmsg:${phone}`, Date.now(), "EX", 60 * 60 * 24 * 90);
     await r.del(`followup:${phone}`); // cliente respondeu → reset o funil de follow-up
+
+    // ── Marca saudação do dia como feita (expira em 24h) ──
+    if (!jaGreetedHoje) await r.set(greetKey, "1", "EX", 60 * 60 * 24);
 
     // ── Enviar mensagem única com delay e typing ──
     const delay = ms => new Promise(res => setTimeout(res, ms));
