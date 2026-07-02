@@ -380,6 +380,10 @@ export default async function handler(req, res) {
     const daysAgo = req.body.daysAgo || 4;
     const fakeLastMsg = Date.now() - daysAgo * 24 * 60 * 60 * 1000;
     await r0.set(`lastmsg:${phone}`, fakeLastMsg, "EX", 60 * 60 * 24 * 90);
+    // Remove de outros fluxos para evitar follow-up duplicado
+    for (const f of ["protese", "clube", "organico"]) {
+      if (f !== flow) await r0.srem(`phones:${f}`, phone);
+    }
     await r0.sadd(`phones:${flow}`, phone);
     await r0.set(`fluxo:${phone}`, flow, "EX", 60 * 60 * 24 * 90);
     await r0.del(`followup:${phone}`); // reset etapa
