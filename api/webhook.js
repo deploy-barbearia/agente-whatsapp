@@ -372,6 +372,20 @@ export default async function handler(req, res) {
     await r0.set("prompt:system", req.body.setPrompt);
     return res.status(200).json({ ok: true, length: req.body.setPrompt.length });
   }
+  // Rota de teste de follow-up: injeta phone no Redis como se tivesse parado há X dias
+  if (req.method === "POST" && req.query?.debug === "wh2025" && req.body?.testFollowup) {
+    const r0 = getRedis();
+    const phone = String(req.body.testFollowup).replace(/\D/g, "");
+    const flow = req.body.flow || "organico";
+    const daysAgo = req.body.daysAgo || 4;
+    const fakeLastMsg = Date.now() - daysAgo * 24 * 60 * 60 * 1000;
+    await r0.set(`lastmsg:${phone}`, fakeLastMsg, "EX", 60 * 60 * 24 * 90);
+    await r0.sadd(`phones:${flow}`, phone);
+    await r0.del(`followup:${phone}`); // reset etapa
+    // Verifica o histórico existente
+    const hist = await r0.get(`hist:${phone}`);
+    return res.status(200).json({ ok: true, phone, flow, daysAgo, hasHistory: !!hist, histLen: hist ? JSON.parse(hist).length : 0 });
+  }
   if (req.method !== "POST") return res.status(200).json({ ok: true });
 
   try {
