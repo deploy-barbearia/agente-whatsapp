@@ -698,8 +698,12 @@ As tags são invisíveis para o cliente — use apenas quando realmente aplicáv
     await r.set(`lastmsg:${phone}`, Date.now(), "EX", 60 * 60 * 24 * 90);
     await r.del(`followup:${phone}`); // cliente respondeu → reset o funil de follow-up
 
-    // ── Marca saudação do dia como feita (expira em 24h) ──
-    if (!jaGreetedHoje) await r.set(greetKey, "1", "EX", 60 * 60 * 24);
+    // ── Garante saudação no início da primeira mensagem do dia ──
+    if (!jaGreetedHoje) {
+      const jaTémSaudacao = /^(bom dia|boa tarde|boa noite)/i.test(reply.trim());
+      if (!jaTémSaudacao) reply = `${saudacao}! ${reply.trim()}`;
+      await r.set(greetKey, "1", "EX", 60 * 60 * 24);
+    }
 
     // ── Enviar mensagem única com delay e typing ──
     const delay = ms => new Promise(res => setTimeout(res, ms));
