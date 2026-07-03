@@ -359,11 +359,12 @@ export default async function handler(req, res) {
       r0.get("prompt:system"),
       r0.lrange("log:followups", 0, 99),
     ]);
+    const agentPaused = !!(await r0.get("agent:paused"));
     return res.status(200).json({
       webhookLogs: webhookLogs.map(i => { try { return JSON.parse(i); } catch { return i; } }),
       wasellerLogs: wasellerLogs.map(i => { try { return JSON.parse(i); } catch { return i; } }),
       followupLogs: followupLogs.map(i => { try { return JSON.parse(i); } catch { return i; } }),
-      iaoffKeys, lockKeys, pendingKeys, prompt
+      iaoffKeys, lockKeys, pendingKeys, prompt, agentPaused
     });
   }
   // Rota de escrita temporária de prompt via debug
@@ -400,6 +401,27 @@ export default async function handler(req, res) {
     const cronRes = await fetch(`${base}/api/cron`);
     const cronResult = await cronRes.json();
     return res.status(200).json({ ok: true, cron: cronResult });
+  }
+
+  // Pausar / retomar agente globalmente
+  if (req.method === "POST" && req.query?.debug === "wh2025" && req.body?.pauseAgent) {
+    const r0 = getRedis();
+    await r0.set("agent:paused", "1");
+    return res.status(200).json({ ok: true, paused: true });
+  }
+  if (req.method === "POST" && req.query?.debug === "wh2025" && req.body?.resumeAgent) {
+    const r0 = getRedis();
+    await r0.del("agent:paused");
+    return res.status(200).json({ ok: true, paused: false });
+  }
+
+  // Desconectar WhatsApp
+  if (req.method === "POST" && req.query?.debug === "wh2025" && req.body?.disconnectWA) {
+    const res2 = await fetch(
+      `${process.env.EVOLUTION_API_URL}/instance/logout/${process.env.EVOLUTION_INSTANCE}`,
+      { method: "DELETE", headers: { apikey: process.env.EVOLUTION_API_KEY } }
+    );
+    return res.status(200).json({ ok: res2.ok });
   }
 
   if (req.method !== "POST") return res.status(200).json({ ok: true });
@@ -538,6 +560,9 @@ export default async function handler(req, res) {
       await sendWhatsApp(sendTo, "Conversa resetada. Pode começar o teste!");
       return res.status(200).json({ ok: true });
     }
+
+    // ── AGENTE PAUSADO GLOBALMENTE ──
+    if (await r.get("agent:paused")) return res.status(200).json({ ok: true });
 
     // ── IA OFF: Redis é a fonte de verdade ──
     if (await r.get(`iaoff:${phone}`)) return res.status(200).json({ ok: true });

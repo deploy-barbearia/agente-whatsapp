@@ -128,15 +128,44 @@
       gap: 8px;
     }
     .conn-dot {
-      width: 7px;
-      height: 7px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
       background: #444;
       flex-shrink: 0;
+      transition: background 0.3s;
     }
-    .conn-dot.online { background: #25d366; }
-    .conn-dot.offline { background: #e53e3e; }
+    .conn-dot.online {
+      background: #25d366;
+      box-shadow: 0 0 0 3px rgba(37,211,102,0.25);
+      animation: pulse-green 2s infinite;
+    }
+    .conn-dot.offline { background: #e53e3e; box-shadow: 0 0 0 3px rgba(229,62,62,0.2); }
+    .conn-dot.paused { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.25); }
+    @keyframes pulse-green {
+      0%,100% { box-shadow: 0 0 0 3px rgba(37,211,102,0.25); }
+      50% { box-shadow: 0 0 0 5px rgba(37,211,102,0.08); }
+    }
     .conn-label { font-size: 12px; color: #555; }
+    .sidebar-controls {
+      padding: 10px 20px 16px;
+      display: flex;
+      gap: 8px;
+    }
+    .ctrl-btn {
+      flex: 1;
+      padding: 7px 4px;
+      border: none;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .ctrl-btn:active { transform: scale(0.97); }
+    .ctrl-btn.pause  { background: #fff3cd; color: #92400e; }
+    .ctrl-btn.pause.active { background: #25d366; color: #fff; }
+    .ctrl-btn.disconnect { background: #fee2e2; color: #991b1b; }
 
     /* CONTENT */
     .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #f5f5f5; }
@@ -543,6 +572,10 @@
         <div class="conn-dot" id="conn-dot"></div>
         <span class="conn-label" id="conn-label">Verificando</span>
       </div>
+      <div class="sidebar-controls">
+        <button class="ctrl-btn pause" id="btn-pause" onclick="togglePause()">⏸ Pausar IA</button>
+        <button class="ctrl-btn disconnect" onclick="disconnectWA()">⏏ Desconectar</button>
+      </div>
     </div>
 
     <!-- CONTENT -->
@@ -756,6 +789,7 @@ function boot() {
   loadDash();
   checkConn();
   loadFollowupConfig();
+  checkPauseState();
 }
 
 // NAVIGATION
@@ -783,7 +817,65 @@ function setConnStatus(online) {
   const dot = document.getElementById('conn-dot');
   const label = document.getElementById('conn-label');
   dot.className = 'conn-dot ' + (online ? 'online' : 'offline');
-  label.textContent = online ? 'Conectado' : 'Desconectado';
+  label.textContent = online ? 'WhatsApp conectado' : 'Desconectado';
+}
+
+let _paused = false;
+async function togglePause() {
+  const btn = document.getElementById('btn-pause');
+  btn.disabled = true;
+  try {
+    const action = _paused ? 'resume' : 'pause';
+    const r = await fetch('/api/webhook?debug=wh2025', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [action === 'pause' ? 'pauseAgent' : 'resumeAgent']: true })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      _paused = !_paused;
+      btn.textContent = _paused ? '▶ Retomar IA' : '⏸ Pausar IA';
+      btn.classList.toggle('active', _paused);
+      const dot = document.getElementById('conn-dot');
+      const label = document.getElementById('conn-label');
+      if (_paused) {
+        dot.className = 'conn-dot paused';
+        label.textContent = 'IA pausada';
+      } else {
+        dot.className = 'conn-dot online';
+        label.textContent = 'WhatsApp conectado';
+      }
+    }
+  } finally { btn.disabled = false; }
+}
+
+async function disconnectWA() {
+  if (!confirm('Desconectar o WhatsApp do aparelho?')) return;
+  const r = await fetch('/api/webhook?debug=wh2025', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ disconnectWA: true })
+  });
+  const d = await r.json();
+  if (d.ok) {
+    setConnStatus(false);
+    alert('WhatsApp desconectado. Vá em Conexão para reconectar via QR.');
+  }
+}
+
+async function checkPauseState() {
+  try {
+    const r = await fetch('/api/webhook?debug=wh2025');
+    const d = await r.json();
+    _paused = !!d.agentPaused;
+    const btn = document.getElementById('btn-pause');
+    btn.textContent = _paused ? '▶ Retomar IA' : '⏸ Pausar IA';
+    btn.classList.toggle('active', _paused);
+    if (_paused) {
+      document.getElementById('conn-dot').className = 'conn-dot paused';
+      document.getElementById('conn-label').textContent = 'IA pausada';
+    }
+  } catch(e) {}
 }
 
 // CONVERSATIONS
